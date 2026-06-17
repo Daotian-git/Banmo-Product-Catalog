@@ -1,241 +1,229 @@
-import { Injectable } from '@nestjs/common'
-import { getSupabaseClient } from '../storage/database/supabase-client'
-import { S3Storage } from 'coze-coding-dev-sdk'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { S3Storage } from 'coze-coding-dev-sdk';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
-interface CreateProductData {
-  name: string
-  category_id?: number
-  model?: string        // 产品型号
-  price?: string
-  description?: string
-  material?: string
-  size?: string
-  process?: string
-  origin?: string
-  features?: string[]
-  imageFile?: Express.Multer.File
-  imageBuffer?: Buffer  // 批量导入时从ZIP中提取的图片
-  imageName?: string    // 图片文件名（用于生成key）
+// 产品数据类型（用于创建）
+export interface CreateProductData {
+  name: string;
+  category_id: number;
+  models?: Array<{ model: string; size: string }>;
+  layout?: number;
+  imageFile?: Express.Multer.File;
+  imageBuffer?: Buffer;
+  imageFilename?: string;
 }
 
-interface UpdateProductData {
-  name?: string
-  category_id?: number
-  model?: string        // 产品型号
-  price?: string
-  material?: string
-  size?: string
-  process?: string
-  origin?: string
-  imageFile?: Express.Multer.File
+// 产品数据类型（用于更新）
+export interface UpdateProductData {
+  name?: string;
+  category_id?: number;
+  models?: Array<{ model: string; size: string }>;
+  layout?: number;
+  imageFile?: Express.Multer.File;
 }
 
 @Injectable()
 export class ProductsService {
-  private client = getSupabaseClient()
-  private storage = new S3Storage({
-    endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-    accessKey: '',
-    secretKey: '',
-    bucketName: process.env.COZE_BUCKET_NAME,
-    region: 'cn-beijing',
-  })
+  private storage: S3Storage;
 
-  // 获取产品列表
-  async getProducts(categoryId?: number) {
-    let query = this.client
+  constructor() {
+    this.storage = new S3Storage();
+  }
+
+  // 获取 Supabase Client
+  private getSupabase() {
+    return getSupabaseClient();
+  }
+
+  // 获取所有产品（带分类信息）
+  async findAll() {
+    const supabase = this.getSupabase();
+    
+    // 先获取所有产品
+    const { data: productsData, error: productsError } = await supabase
       .from('products')
-      .select('id, name, category_id, price, description, image_url, material, size, weight, process, origin, features, sort_order, created_at, categories(id, name, icon)')
-      .order('sort_order', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (categoryId) {
-      query = query.eq('category_id', categoryId)
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true });
+    
+    if (productsError) {
+      console.error('获取产品失败:', productsError);
+      return [];
     }
+    
+    // 获取所有分类
+    const { data: categoriesData } = await supabase
+      .from('categories')
+      .select('*');
+    
+    // 组合数据
+    const categoryMap = new Map(categoriesData?.map(c => [c.id, c]) || []);
+    return productsData?.map(p => ({
+      ...p,
+      category: categoryMap.get(p.category_id) || null
+    })) || [];
+  }
 
-    const { data, error } = await query.limit(100)
-    if (error) throw new Error(`查询产品失败: ${error.message}`)
-
-    // 刷新图片URL（签名URL可能过期）
-    const products = data as any[]
-    for (const product of products) {
-      if (product.image_key) {
-        product.image_url = await this.storage.generatePresignedUrl({
-          key: product.image_key,
-          expireTime: 86400
-        })
-      }
-    }
-
-    return products
+  // 按分类获取产品
+  async findByCategory(categoryId: number) {
+    const supabase = this.getSupabase();
+    
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('*')
+      .eq('category_id', categoryId)
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true });
+    
+    // 获取分类信息
+    const { data: categoryData } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', categoryId)
+      .single();
+    
+    return productsData?.map(p => ({
+      ...p,
+      category: categoryData
+    })) || [];
   }
 
   // 获取单个产品
-  async getProductById(id: number) {
-    const { data, error } = await this.client
+  async findOne(id: number) {
+    const supabase = this.getSupabase();
+    
+    const { data: product, error } = await supabase
       .from('products')
-      .select('id, name, category_id, price, description, image_url, image_key, material, size, weight, process, origin, features, sort_order, created_at, updated_at, categories(id, name, icon)')
+      .select('*')
       .eq('id', id)
-      .maybeSingle()
-
-    if (error) throw new Error(`查询产品详情失败: ${error.message}`)
-
-    // 刷新图片URL
-    if (data && (data as any).image_key) {
-      (data as any).image_url = await this.storage.generatePresignedUrl({
-        key: (data as any).image_key,
-        expireTime: 86400
-      })
+      .single();
+    
+    if (error || !product) {
+      throw new NotFoundException(`产品 #${id} 不存在`);
     }
-
-    return data
+    
+    // 获取分类信息
+    const { data: categoryData } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', product.category_id)
+      .single();
+    
+    return {
+      ...product,
+      category: categoryData
+    };
   }
 
   // 创建产品
-  async createProduct(data: CreateProductData) {
-    let imageKey: string | undefined
-    let imageUrl: string | undefined
+  async create(data: CreateProductData) {
+    const supabase = this.getSupabase();
+    let imageKey: string | undefined;
+    let imageUrl: string | undefined;
 
-    // 上传图片到对象存储（支持 File 或 Buffer）
-    const imageBuffer = data.imageFile?.buffer || data.imageBuffer
-    if (imageBuffer) {
-      const fileName = `products/${Date.now()}_${data.imageFile?.originalname || data.imageName || 'image.jpg'}`
-      const contentType = data.imageFile?.mimetype || 'image/jpeg'
+    // 上传图片（如果有）
+    if (data.imageFile && data.imageFile.buffer) {
+      const filename = `products/${Date.now()}_${data.imageFile.originalname}`;
       imageKey = await this.storage.uploadFile({
-        fileContent: imageBuffer,
-        fileName: fileName,
-        contentType: contentType
-      })
-      imageUrl = await this.storage.generatePresignedUrl({
-        key: imageKey,
-        expireTime: 86400
-      })
-      console.log('图片上传成功:', imageKey)
+        fileContent: data.imageFile.buffer,
+        fileName: filename,
+        contentType: data.imageFile.mimetype
+      });
+      imageUrl = await this.storage.generatePresignedUrl({ key: imageKey });
+    } else if (data.imageBuffer) {
+      const filename = `products/${Date.now()}_${data.imageFilename || 'image.jpg'}`;
+      imageKey = await this.storage.uploadFile({
+        fileContent: data.imageBuffer,
+        fileName: filename,
+        contentType: 'image/jpeg'
+      });
+      imageUrl = await this.storage.generatePresignedUrl({ key: imageKey });
     }
 
-    const { data: result, error } = await this.client
+    const { data: product, error } = await supabase
       .from('products')
       .insert({
         name: data.name,
         category_id: data.category_id,
-        model: data.model,
-        material: data.material,
-        size: data.size,
-        process: data.process,
-        origin: data.origin,
+        models: data.models || [],
+        layout: data.layout || 1,
         image_key: imageKey,
         image_url: imageUrl,
-        sort_order: 0
       })
       .select()
+      .single();
 
-    if (error) throw new Error(`创建产品失败: ${error.message}`)
-    return result?.[0]
+    if (error) {
+      throw new BadRequestException('创建产品失败: ' + error.message);
+    }
+
+    return product;
   }
 
   // 更新产品
-  async updateProduct(id: number, data: UpdateProductData) {
-    let imageKey: string | undefined
-    let imageUrl: string | undefined
+  async update(id: number, data: UpdateProductData) {
+    const supabase = this.getSupabase();
+    const existing = await this.findOne(id);
+    
+    let imageKey: string | undefined = existing.image_key;
+    let imageUrl: string | undefined = existing.image_url;
 
-    // 上传新图片
+    // 更新图片（如果有新图片）
     if (data.imageFile && data.imageFile.buffer) {
-      const fileName = `products/${Date.now()}_${data.imageFile.originalname}`
+      const filename = `products/${Date.now()}_${data.imageFile.originalname}`;
       imageKey = await this.storage.uploadFile({
         fileContent: data.imageFile.buffer,
-        fileName: fileName,
+        fileName: filename,
         contentType: data.imageFile.mimetype
-      })
-      imageUrl = await this.storage.generatePresignedUrl({
-        key: imageKey,
-        expireTime: 86400
-      })
-      console.log('图片更新成功:', imageKey)
+      });
+      imageUrl = await this.storage.generatePresignedUrl({ key: imageKey });
     }
 
-    const updateData: any = { ...data, updated_at: new Date().toISOString() }
-    if (imageKey) {
-      updateData.image_key = imageKey
-      updateData.image_url = imageUrl
-    }
-    delete updateData.imageFile
-
-    const { data: result, error } = await this.client
+    const { data: product, error } = await supabase
       .from('products')
-      .update(updateData)
+      .update({
+        name: data.name ?? existing.name,
+        category_id: data.category_id ?? existing.category_id,
+        models: data.models ?? existing.models,
+        layout: data.layout ?? existing.layout,
+        image_key: imageKey,
+        image_url: imageUrl,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id)
       .select()
+      .single();
 
-    if (error) throw new Error(`更新产品失败: ${error.message}`)
-    return result?.[0]
+    if (error) {
+      throw new BadRequestException('更新产品失败: ' + error.message);
+    }
+
+    return product;
   }
 
   // 删除产品
-  async deleteProduct(id: number) {
-    // 先获取产品信息，删除图片
-    const product = await this.getProductById(id)
-    if (product && (product as any).image_key) {
+  async remove(id: number) {
+    const supabase = this.getSupabase();
+    const product = await this.findOne(id);
+    
+    // 删除对象存储中的图片
+    if (product.image_key) {
       try {
-        await this.storage.deleteFile({ fileKey: (product as any).image_key })
-        console.log('图片删除成功:', (product as any).image_key)
-      } catch (err) {
-        console.warn('图片删除失败:', err)
+        await this.storage.deleteFile({ fileKey: product.image_key });
+      } catch (e) {
+        console.log('删除图片失败:', e.message);
       }
     }
-
-    const { error } = await this.client
+    
+    const { error } = await supabase
       .from('products')
       .delete()
-      .eq('id', id)
-
-    if (error) throw new Error(`删除产品失败: ${error.message}`)
-  }
-
-  // 获取分类列表
-  async getCategories() {
-    const { data, error } = await this.client
-      .from('categories')
-      .select('id, name, icon, sort_order, created_at')
-      .order('sort_order', { ascending: false })
-
-    if (error) throw new Error(`查询分类失败: ${error.message}`)
-    return data
-  }
-
-  // 创建分类
-  async createCategory(data: { name: string; icon?: string; sort_order?: number }) {
-    const { data: result, error } = await this.client
-      .from('categories')
-      .insert({
-        name: data.name,
-        icon: data.icon || '📋',
-        sort_order: data.sort_order || 0
-      })
-      .select()
-
-    if (error) throw new Error(`创建分类失败: ${error.message}`)
-    return result?.[0]
-  }
-
-  // 更新分类
-  async updateCategory(id: number, data: { name?: string; icon?: string; sort_order?: number }) {
-    const { data: result, error } = await this.client
-      .from('categories')
-      .update(data)
-      .eq('id', id)
-      .select()
-
-    if (error) throw new Error(`更新分类失败: ${error.message}`)
-    return result?.[0]
-  }
-
-  // 删除分类
-  async deleteCategory(id: number) {
-    const { error } = await this.client
-      .from('categories')
-      .delete()
-      .eq('id', id)
-
-    if (error) throw new Error(`删除分类失败: ${error.message}`)
+      .eq('id', id);
+    
+    if (error) {
+      throw new BadRequestException('删除产品失败: ' + error.message);
+    }
+    
+    return { success: true };
   }
 }

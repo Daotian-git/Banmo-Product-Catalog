@@ -1,244 +1,244 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UploadedFile, UploadedFiles, UseInterceptors, HttpCode, BadRequestException } from '@nestjs/common'
-import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express'
-import { memoryStorage } from 'multer'
-import { ProductsService } from './products.service'
-import * as xlsx from 'xlsx'
-import * as AdmZip from 'adm-zip'
+import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UploadedFile, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ProductsService } from './products.service';
+import * as xlsx from 'xlsx';
+import * as AdmZip from 'adm-zip';
+
+// 类型定义
+interface ProductRow {
+  '名称'?: string;
+  '型号'?: string;
+  '分类ID'?: string;
+  '尺寸'?: string;
+  '排列方式'?: string;
+  '图片文件名'?: string;
+  name?: string;
+  model?: string;
+  category_id?: string;
+  size?: string;
+  layout?: string;
+  image?: string;
+}
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  // 获取产品列表
+  // 获取所有产品（带分类信息）
   @Get()
-  @HttpCode(200)
-  async getProducts(@Query('category_id') categoryId?: string) {
-    const result = await this.productsService.getProducts(
-      categoryId ? parseInt(categoryId) : undefined
-    )
-    return { code: 200, msg: 'success', data: result }
+  async findAll() {
+    const products = await this.productsService.findAll();
+    return { code: 200, msg: 'success', data: products };
   }
 
-  // 获取单个产品详情
+  // 获取单个产品
   @Get(':id')
-  @HttpCode(200)
-  async getProduct(@Param('id') id: string) {
-    const result = await this.productsService.getProductById(parseInt(id))
-    return { code: 200, msg: 'success', data: result }
+  async findOne(@Param('id') id: string) {
+    const product = await this.productsService.findOne(Number(id));
+    return { code: 200, msg: 'success', data: product };
   }
 
-  // 创建产品（含图片上传）
+  // 创建产品（带图片上传）
   @Post()
-  @HttpCode(200)
-  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
-  async createProduct(
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('image'))
+  async create(
     @Body() body: {
-      name: string
-      category_id?: number
-      model?: string
-      price?: string
-      description?: string
-      material?: string
-      size?: string
-      weight?: string
-      process?: string
-      origin?: string
-      features?: string
+      name: string;
+      category_id: number;
+      models: string;  // JSON字符串，如 [{"model": "MJ-001", "size": "120×60"}]
+      layout: number;
     },
     @UploadedFile() file?: Express.Multer.File
   ) {
-    console.log('创建产品请求:', body)
-    console.log('上传文件:', file ? `${file.originalname} (${file.size} bytes)` : '无')
-
-    const features = body.features ? JSON.parse(body.features) : []
-    const result = await this.productsService.createProduct({
-      ...body,
+    const modelsData = typeof body.models === 'string' ? JSON.parse(body.models) : body.models;
+    const product = await this.productsService.create({
+      name: body.name,
       category_id: body.category_id,
-      features,
+      models: modelsData,
+      layout: body.layout || 1,
       imageFile: file
-    })
-    return { code: 200, msg: 'success', data: result }
+    });
+    return { code: 200, msg: 'success', data: product };
   }
 
-  // 更新产品
+  // 更新产品（可更新图片）
   @Put(':id')
-  @HttpCode(200)
-  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
-  async updateProduct(
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('image'))
+  async update(
     @Param('id') id: string,
     @Body() body: {
-      name?: string
-      category_id?: number
-      price?: string
-      description?: string
-      material?: string
-      size?: string
-      weight?: string
-      process?: string
-      origin?: string
-      features?: string
+      name?: string;
+      category_id?: number;
+      models?: string;
+      layout?: number;
     },
     @UploadedFile() file?: Express.Multer.File
   ) {
-    console.log('更新产品请求:', id, body)
-    const result = await this.productsService.updateProduct(parseInt(id), {
-      ...body,
+    const modelsData = body.models ? (typeof body.models === 'string' ? JSON.parse(body.models) : body.models) : undefined;
+    const product = await this.productsService.update(Number(id), {
+      name: body.name,
+      category_id: body.category_id,
+      models: modelsData,
+      layout: body.layout,
       imageFile: file
-    })
-    return { code: 200, msg: 'success', data: result }
+    });
+    return { code: 200, msg: 'success', data: product };
   }
 
   // 删除产品
   @Delete(':id')
-  @HttpCode(200)
-  async deleteProduct(@Param('id') id: string) {
-    await this.productsService.deleteProduct(parseInt(id))
-    return { code: 200, msg: 'success', data: null }
+  async remove(@Param('id') id: string) {
+    await this.productsService.remove(Number(id));
+    return { code: 200, msg: 'success', data: null };
   }
 
-  // 批量导入产品（Excel + ZIP图片包）
-  @Post('batch-import')
-  @HttpCode(200)
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'excel', maxCount: 1 },
-    { name: 'zip', maxCount: 1 }
-  ], { storage: memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }))
-  async batchImport(
-    @UploadedFiles() files: { excel?: Express.Multer.File[], zip?: Express.Multer.File[] },
-    @Body() body: { category_id?: string }
-  ) {
-    console.log('批量导入请求:', body)
+  // 批量上传文件（Excel + ZIP）
+  @Post('batch-upload')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FilesInterceptor('files', 2))
+  async batchUpload(@UploadedFiles() files: Express.Multer.File[]) {
+    const result: { excel: { filename: string; size: number; buffer: string } | null; zip: { filename: string; size: number; buffer: string } | null } = { excel: null, zip: null };
     
-    if (!files.excel?.[0]) {
-      throw new BadRequestException('请上传Excel文件')
+    for (const file of files) {
+      if (file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls') || file.originalname.endsWith('.csv')) {
+        result.excel = {
+          filename: file.originalname,
+          size: file.size,
+          buffer: file.buffer.toString('base64')
+        };
+      } else if (file.originalname.endsWith('.zip')) {
+        result.zip = {
+          filename: file.originalname,
+          size: file.size,
+          buffer: file.buffer.toString('base64')
+        };
+      }
     }
-    if (!files.zip?.[0]) {
-      throw new BadRequestException('请上传ZIP图片包')
+    
+    return { code: 200, msg: 'success', data: result };
+  }
+
+  // 执行批量导入
+  @Post('batch-import')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FilesInterceptor('files', 2))
+  async batchImport(@UploadedFiles() files: Express.Multer.File[]) {
+    let excelBuffer: Buffer | null = null;
+    let zipBuffer: Buffer | null = null;
+    
+    for (const file of files) {
+      if (file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls')) {
+        excelBuffer = file.buffer;
+      } else if (file.originalname.endsWith('.zip')) {
+        zipBuffer = file.buffer;
+      }
     }
 
-    const excelFile = files.excel[0]
-    const zipFile = files.zip[0]
-    const categoryId = body.category_id ? parseInt(body.category_id) : undefined
+    if (!excelBuffer) {
+      return { code: 400, msg: '请上传Excel文件', data: null };
+    }
 
     // 解析Excel
-    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer' })
-    const sheetName = workbook.SheetNames[0]
-    const sheet = workbook.Sheets[sheetName]
-    const rows = xlsx.utils.sheet_to_json(sheet) as any[]
-
-    console.log(`Excel解析完成: ${rows.length} 行数据`)
+    const workbook = xlsx.read(excelBuffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, string>[];
 
     // 解压ZIP获取图片
-    const zip = new AdmZip(zipFile.buffer)
-    const zipEntries = zip.getEntries()
-    const imageMap: Map<string, Buffer> = new Map()
-
-    zipEntries.forEach(entry => {
-      if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
-        const fileName = entry.entryName.split('/').pop() || entry.entryName
-        imageMap.set(fileName, entry.getData())
-        console.log(`图片: ${fileName}`)
+    const images: Map<string, Buffer> = new Map();
+    if (zipBuffer) {
+      const zip = new AdmZip(zipBuffer);
+      const zipEntries = zip.getEntries();
+      for (const entry of zipEntries) {
+        if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
+          const filename = entry.entryName.split('/').pop() || entry.entryName;
+          images.set(filename, entry.getData());
+        }
       }
-    })
-
-    console.log(`ZIP解压完成: ${imageMap.size} 张图片`)
+    }
 
     // 批量创建产品
-    const results: { success: any[], failed: any[] } = { success: [], failed: [] }
+    const created: any[] = [];
+    const failed: any[] = [];
 
     for (const row of rows) {
       try {
-        // Excel列名映射（支持中文和英文）
-        const productData = {
-          name: row['产品名称'] || row['name'] || row['名称'] || '',
-          model: row['型号'] || row['model'] || '',
-          material: row['材质'] || row['material'] || '',
-          size: row['尺寸'] || row['size'] || '',
-          process: row['工艺'] || row['process'] || '',
-          origin: row['产地'] || row['origin'] || '',
-          imageName: row['图片文件名'] || row['image'] || row['图片'] || ''
-        }
+        // 解析型号和尺寸（支持多个，用分号分隔）
+        const modelsData = this.parseModels(row);
+        
+        // 获取图片
+        const imageFilename = row['图片文件名'] || row['image'] || '';
+        const imageBuffer = images.get(imageFilename) || null;
 
-        if (!productData.name) {
-          results.failed.push({ row, reason: '缺少产品名称' })
-          continue
-        }
-
-        // 根据文件名匹配图片
-        let imageBuffer: Buffer | undefined
-        if (productData.imageName && imageMap.has(productData.imageName)) {
-          imageBuffer = imageMap.get(productData.imageName)
-        }
-
-        // 创建产品
-        const product = await this.productsService.createProduct({
-          name: productData.name,
-          category_id: categoryId,
-          model: productData.model,
-          material: productData.material,
-          size: productData.size,
-          process: productData.process,
-          origin: productData.origin,
-          imageBuffer
-        })
-
-        results.success.push(product)
-        console.log(`创建成功: ${productData.name}`)
-      } catch (error: any) {
-        results.failed.push({ row, reason: error.message })
-        console.error(`创建失败:`, error.message)
+        const product = await this.productsService.create({
+          name: row['名称'] || row['name'] || '',
+          category_id: Number(row['分类ID'] || row['category_id']) || 1,
+          models: modelsData,
+          layout: Number(row['排列方式'] || row['layout']) || 1,
+          imageBuffer: imageBuffer || undefined,
+          imageFilename: imageFilename
+        });
+        created.push(product);
+      } catch (error) {
+        failed.push({ row, error: error.message });
       }
     }
 
-    return {
-      code: 200,
-      msg: '批量导入完成',
-      data: {
-        total: rows.length,
-        success: results.success.length,
-        failed: results.failed.length,
-        failedItems: results.failed
+    return { 
+      code: 200, 
+      msg: 'success', 
+      data: { 
+        total: rows.length, 
+        created: created.length, 
+        failed: failed.length,
+        details: { created, failed }
+      }
+    };
+  }
+
+  // 解析型号和尺寸（支持多个）
+  private parseModels(row: any): { model: string; size: string }[] {
+    const models: { model: string; size: string }[] = [];
+    
+    // 支持多种格式：
+    // 1. 型号字段用分号分隔多个型号：MJ-001;MJ-002;MJ-003
+    // 2. 尺寸字段用分号分隔多个尺寸：120×60×45;100×50×40;80×40×35
+    // 3. 或者用 JSON 格式：[{"model":"MJ-001","size":"120×60"}]
+    
+    const modelStr = row['型号'] || row['model'] || '';
+    const sizeStr = row['尺寸'] || row['size'] || '';
+    
+    // 如果是JSON格式
+    if (modelStr.startsWith('[')) {
+      try {
+        return JSON.parse(modelStr);
+      } catch {
+        // 解析失败，使用分号分隔方式
       }
     }
-  }
-}
-
-@Controller('categories')
-export class CategoriesController {
-  constructor(private readonly productsService: ProductsService) {}
-
-  // 获取分类列表
-  @Get()
-  @HttpCode(200)
-  async getCategories() {
-    const result = await this.productsService.getCategories()
-    return { code: 200, msg: 'success', data: result }
-  }
-
-  // 创建分类
-  @Post()
-  @HttpCode(200)
-  async createCategory(@Body() body: { name: string; icon?: string; sort_order?: number }) {
-    const result = await this.productsService.createCategory(body)
-    return { code: 200, msg: 'success', data: result }
-  }
-
-  // 更新分类
-  @Put(':id')
-  @HttpCode(200)
-  async updateCategory(
-    @Param('id') id: string,
-    @Body() body: { name?: string; icon?: string; sort_order?: number }
-  ) {
-    const result = await this.productsService.updateCategory(parseInt(id), body)
-    return { code: 200, msg: 'success', data: result }
-  }
-
-  // 删除分类
-  @Delete(':id')
-  @HttpCode(200)
-  async deleteCategory(@Param('id') id: string) {
-    await this.productsService.deleteCategory(parseInt(id))
-    return { code: 200, msg: 'success', data: null }
+    
+    // 分号分隔方式
+    const modelList = modelStr.split(/[;；,，]/).filter(s => s.trim());
+    const sizeList = sizeStr.split(/[;；,，]/).filter(s => s.trim());
+    
+    // 型号和尺寸一一对应，或者只有一个尺寸对应所有型号
+    for (let i = 0; i < modelList.length; i++) {
+      models.push({
+        model: modelList[i].trim(),
+        size: (sizeList[i] || sizeList[0] || '').trim()
+      });
+    }
+    
+    // 如果没有型号但有尺寸
+    if (modelList.length === 0 && sizeList.length > 0) {
+      for (const size of sizeList) {
+        models.push({ model: '', size: size.trim() });
+      }
+    }
+    
+    return models.length > 0 ? models : [{ model: '', size: '' }];
   }
 }

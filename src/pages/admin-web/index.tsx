@@ -3,27 +3,27 @@ import { Input } from '@/components/ui/input'
 import Taro from '@tarojs/taro'
 import { useState, useEffect } from 'react'
 import { Network } from '@/network'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 
 // 产品类型定义
 interface Product {
   id: number
   name: string
-  model?: string
-  category_id: number
-  material?: string
-  size?: string
-  process?: string
-  origin?: string
+  models: string[] // 多个型号
   image_url?: string
-  categories?: { id: number; name: string }
+  sizes: string[] // 多个尺寸
+  layout: number // 排列方式：1或2
+  category_id: number
+  category_name?: string
 }
 
+// 分类类型定义
 interface Category {
   id: number
   name: string
+  parent_id: number | null
+  children?: Category[]
 }
 
 export default function AdminWebPage() {
@@ -36,19 +36,19 @@ export default function AdminWebPage() {
   // 产品表单数据
   const [formData, setFormData] = useState({
     name: '',
-    model: '',
-    categoryId: '',
-    material: '',
-    size: '',
-    process: '',
-    origin: ''
+    models: [''], // 多个型号
+    sizes: [''], // 多个尺寸
+    layout: 1, // 默认1列
+    categoryId: ''
   })
   const [currentImage, setCurrentImage] = useState('')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [tempImagePath, setTempImagePath] = useState('')
   
   // 分类表单
-  const [newCategory, setNewCategory] = useState({ name: '' })
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryParent, setNewCategoryParent] = useState('')
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   
   // 批量导入
   const [excelFile, setExcelFile] = useState('')
@@ -98,10 +98,99 @@ export default function AdminWebPage() {
     }
   }
 
+  // 添加型号
+  const addModel = () => {
+    setFormData(prev => ({ ...prev, models: [...prev.models, ''] }))
+  }
+
+  // 删除型号
+  const removeModel = (index: number) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      models: prev.models.filter((_, i) => i !== index) 
+    }))
+  }
+
+  // 更新型号
+  const updateModel = (index: number, value: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      models: prev.models.map((m, i) => i === index ? value : m) 
+    }))
+  }
+
+  // 添加尺寸
+  const addSize = () => {
+    setFormData(prev => ({ ...prev, sizes: [...prev.sizes, ''] }))
+  }
+
+  // 删除尺寸
+  const removeSize = (index: number) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      sizes: prev.sizes.filter((_, i) => i !== index) 
+    }))
+  }
+
+  // 更新尺寸
+  const updateSize = (index: number, value: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      sizes: prev.sizes.map((s, i) => i === index ? value : s) 
+    }))
+  }
+
+  // 选择分类
+  const selectCategory = async () => {
+    if (categories.length === 0) {
+      Taro.showToast({ title: '请先添加分类', icon: 'none' })
+      return
+    }
+    
+    // 构建分类选项（一级分类 + 二级分类）
+    const options: string[] = []
+    categories.forEach(parent => {
+      if (parent.parent_id === null) {
+        options.push(parent.name)
+        // 添加二级分类
+        categories.forEach(child => {
+          if (child.parent_id === parent.id) {
+            options.push(`  ${parent.name} - ${child.name}`)
+          }
+        })
+      }
+    })
+    
+    try {
+      const res = await Taro.showActionSheet({
+        itemList: options
+      })
+      // 根据选择确定分类ID
+      const selectedOption = options[res.tapIndex]
+      // 如果是二级分类（包含" - "）
+      if (selectedOption.includes(' - ')) {
+        const parts = selectedOption.trim().split(' - ')
+        const childName = parts[1]
+        const childCategory = categories.find(c => c.name === childName && c.parent_id !== null)
+        if (childCategory) {
+          setFormData(prev => ({ ...prev, categoryId: String(childCategory.id) }))
+        }
+      } else {
+        // 一级分类
+        const parentCategory = categories.find(c => c.name === selectedOption && c.parent_id === null)
+        if (parentCategory) {
+          setFormData(prev => ({ ...prev, categoryId: String(parentCategory.id) }))
+        }
+      }
+    } catch (error) {
+      console.log('取消选择')
+    }
+  }
+
   // 提交产品
   const handleSubmit = async () => {
-    if (!formData.name.trim()) {
-      Taro.showToast({ title: '请填写产品名称', icon: 'none' })
+    if (!formData.name) {
+      Taro.showToast({ title: '请输入产品名称', icon: 'none' })
       return
     }
     if (!formData.categoryId) {
@@ -111,176 +200,219 @@ export default function AdminWebPage() {
 
     setUploading(true)
     try {
-      if (editingProduct) {
-        // 编辑模式
-        const updateData: any = {
+      if (tempImagePath) {
+        // 有图片，使用 uploadFile
+        const uploadData = {
           name: formData.name,
-          model: formData.model,
-          category_id: parseInt(formData.categoryId),
-          material: formData.material,
-          size: formData.size,
-          process: formData.process,
-          origin: formData.origin
+          models: JSON.stringify(formData.models.filter(m => m)),
+          sizes: JSON.stringify(formData.sizes.filter(s => s)),
+          layout: String(formData.layout),
+          category_id: formData.categoryId
         }
-
-        // 如果选择了新图片，需要上传
-        if (tempImagePath) {
-          const uploadRes = await Network.uploadFile({
-            url: '/api/products',
-            filePath: tempImagePath,
-            name: 'image',
-            formData: updateData
-          })
-          console.log('上传更新结果:', uploadRes.data)
-        } else {
-          // 没有新图片，直接更新
-          await Network.request({
-            url: `/api/products/${editingProduct.id}`,
-            method: 'PUT',
-            data: updateData
-          })
-        }
-        Taro.showToast({ title: '修改成功', icon: 'success' })
-        setEditingProduct(null)
-      } else {
-        // 新增模式
-        if (!tempImagePath) {
-          Taro.showToast({ title: '请选择产品图片', icon: 'none' })
-          setUploading(false)
-          return
-        }
-
+        
         const uploadRes = await Network.uploadFile({
           url: '/api/products',
           filePath: tempImagePath,
           name: 'image',
-          formData: {
+          formData: uploadData
+        })
+        
+        console.log('上传结果:', uploadRes)
+        
+        if (uploadRes.statusCode === 200 || uploadRes.statusCode === 201) {
+          Taro.showToast({ title: editingProduct ? '修改成功' : '添加成功', icon: 'success' })
+          resetForm()
+          loadProducts()
+        } else {
+          Taro.showToast({ title: '提交失败', icon: 'none' })
+        }
+      } else if (editingProduct) {
+        // 编辑模式，无新图片
+        const res = await Network.request({
+          url: `/api/products/${editingProduct.id}`,
+          method: 'PUT',
+          data: {
             name: formData.name,
-            model: formData.model,
-            category_id: parseInt(formData.categoryId),
-            material: formData.material,
-            size: formData.size,
-            process: formData.process,
-            origin: formData.origin
+            models: formData.models.filter(m => m),
+            sizes: formData.sizes.filter(s => s),
+            layout: formData.layout,
+            category_id: parseInt(formData.categoryId)
           }
         })
-        console.log('上传结果:', uploadRes.data)
-        Taro.showToast({ title: '添加成功', icon: 'success' })
+        
+        if (res.statusCode === 200) {
+          Taro.showToast({ title: '修改成功', icon: 'success' })
+          resetForm()
+          loadProducts()
+        }
+      } else {
+        Taro.showToast({ title: '请选择产品图片', icon: 'none' })
       }
-
-      // 重置表单
-      setFormData({ name: '', model: '', categoryId: '', material: '', size: '', process: '', origin: '' })
-      setCurrentImage('')
-      setTempImagePath('')
-      loadProducts()
-    } catch (error: any) {
+    } catch (error) {
       console.error('提交失败:', error)
-      Taro.showToast({ title: error.message || '提交失败', icon: 'none' })
+      Taro.showToast({ title: '提交失败', icon: 'none' })
     } finally {
       setUploading(false)
     }
   }
 
-  // 开始编辑产品
-  const startEditProduct = (product: Product) => {
+  // 重置表单
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      models: [''],
+      sizes: [''],
+      layout: 1,
+      categoryId: ''
+    })
+    setCurrentImage('')
+    setTempImagePath('')
+    setEditingProduct(null)
+  }
+
+  // 编辑产品
+  const handleEdit = (product: Product) => {
     setEditingProduct(product)
     setFormData({
       name: product.name,
-      model: product.model || '',
-      categoryId: String(product.category_id),
-      material: product.material || '',
-      size: product.size || '',
-      process: product.process || '',
-      origin: product.origin || ''
+      models: product.models || [''],
+      sizes: product.sizes || [''],
+      layout: product.layout || 1,
+      categoryId: String(product.category_id)
     })
     setCurrentImage(product.image_url || '')
     setTempImagePath('')
   }
 
-  // 取消编辑
-  const cancelEdit = () => {
-    setEditingProduct(null)
-    setFormData({ name: '', model: '', categoryId: '', material: '', size: '', process: '', origin: '' })
-    setCurrentImage('')
-    setTempImagePath('')
-  }
-
   // 删除产品
-  const handleDeleteProduct = async (id: number) => {
-    const res = await Taro.showModal({
-      title: '确认删除',
-      content: '删除后无法恢复，确定要删除这个产品吗？'
-    })
-    if (res.confirm) {
-      try {
+  const handleDelete = async (productId: number) => {
+    try {
+      const res = await Taro.showModal({
+        title: '确认删除',
+        content: '确定要删除这个产品吗？'
+      })
+      if (res.confirm) {
         await Network.request({
-          url: `/api/products/${id}`,
+          url: `/api/products/${productId}`,
           method: 'DELETE'
         })
         Taro.showToast({ title: '删除成功', icon: 'success' })
         loadProducts()
-      } catch (error) {
-        Taro.showToast({ title: '删除失败', icon: 'none' })
       }
+    } catch (error) {
+      console.error('删除失败:', error)
+      Taro.showToast({ title: '删除失败', icon: 'none' })
     }
   }
 
+  // ===== 分类管理 =====
+  
   // 添加分类
   const handleAddCategory = async () => {
-    if (!newCategory.name.trim()) {
-      Taro.showToast({ title: '请填写分类名称', icon: 'none' })
+    if (!newCategoryName) {
+      Taro.showToast({ title: '请输入分类名称', icon: 'none' })
       return
     }
+
     try {
+      const data = {
+        name: newCategoryName,
+        parent_id: newCategoryParent ? parseInt(newCategoryParent) : null
+      }
+      
       await Network.request({
         url: '/api/categories',
         method: 'POST',
-        data: { name: newCategory.name }
+        data
       })
+      
       Taro.showToast({ title: '添加成功', icon: 'success' })
-      setNewCategory({ name: '' })
+      setNewCategoryName('')
+      setNewCategoryParent('')
       loadCategories()
     } catch (error) {
+      console.error('添加分类失败:', error)
       Taro.showToast({ title: '添加失败', icon: 'none' })
     }
   }
 
+  // 编辑分类
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category)
+    setNewCategoryName(category.name)
+    setNewCategoryParent(category.parent_id ? String(category.parent_id) : '')
+  }
+
+  // 保存分类编辑
+  const handleSaveCategory = async () => {
+    if (!editingCategory || !newCategoryName) return
+    
+    try {
+      await Network.request({
+        url: `/api/categories/${editingCategory.id}`,
+        method: 'PUT',
+        data: {
+          name: newCategoryName,
+          parent_id: newCategoryParent ? parseInt(newCategoryParent) : null
+        }
+      })
+      
+      Taro.showToast({ title: '修改成功', icon: 'success' })
+      setEditingCategory(null)
+      setNewCategoryName('')
+      setNewCategoryParent('')
+      loadCategories()
+    } catch (error) {
+      console.error('修改分类失败:', error)
+      Taro.showToast({ title: '修改失败', icon: 'none' })
+    }
+  }
+
   // 删除分类
-  const handleDeleteCategory = async (id: number) => {
-    const res = await Taro.showModal({
-      title: '确认删除',
-      content: '删除分类后，该分类下的产品将变为未分类状态，确定要删除吗？'
-    })
-    if (res.confirm) {
-      try {
+  const handleDeleteCategory = async (categoryId: number) => {
+    try {
+      const res = await Taro.showModal({
+        title: '确认删除',
+        content: '确定要删除这个分类吗？'
+      })
+      if (res.confirm) {
         await Network.request({
-          url: `/api/categories/${id}`,
+          url: `/api/categories/${categoryId}`,
           method: 'DELETE'
         })
         Taro.showToast({ title: '删除成功', icon: 'success' })
         loadCategories()
-        loadProducts()
-      } catch (error) {
-        Taro.showToast({ title: '删除失败', icon: 'none' })
       }
-    }
-  }
-
-  // 选择Excel文件
-  const handleChooseExcel = async () => {
-    try {
-      const res = await Taro.chooseMessageFile({ count: 1, type: 'file', extension: ['xlsx', 'xls', 'csv'] })
-      setExcelFile(res.tempFiles[0].path)
-      setImportResult('')
     } catch (error) {
-      console.error('选择Excel失败:', error)
+      console.error('删除分类失败:', error)
+      Taro.showToast({ title: '删除失败', icon: 'none' })
     }
   }
 
-  // 选择ZIP文件
-  const handleChooseZip = async () => {
+  // ===== 批量导入 =====
+
+  // 选择 Excel 文件
+  const chooseExcelFile = async () => {
     try {
-      const res = await Taro.chooseMessageFile({ count: 1, type: 'file', extension: ['zip'] })
+      const res = await Taro.chooseMessageFile({
+        count: 1,
+        type: 'file',
+        extension: ['xlsx', 'xls', 'csv']
+      })
+      setExcelFile(res.tempFiles[0].path)
+    } catch (error) {
+      console.error('选择文件失败:', error)
+    }
+  }
+
+  // 选择 ZIP 文件
+  const chooseZipFile = async () => {
+    try {
+      const res = await Taro.chooseMessageFile({
+        count: 1,
+        type: 'file',
+        extension: ['zip']
+      })
       setZipFile(res.tempFiles[0].path)
     } catch (error) {
       console.error('选择ZIP失败:', error)
@@ -290,26 +422,31 @@ export default function AdminWebPage() {
   // 执行批量导入
   const handleBatchImport = async () => {
     if (!excelFile) {
-      Taro.showToast({ title: '请先选择Excel文件', icon: 'none' })
+      Taro.showToast({ title: '请选择Excel文件', icon: 'none' })
       return
     }
 
     setBatchUploading(true)
-    setImportResult('正在处理...')
+    setImportResult('')
 
     try {
-      // 上传Excel文件
-      const uploadRes = await Network.uploadFile({
+      // 先上传文件
+      const uploadFormData: Record<string, string> = {}
+      
+      const excelRes = await Network.uploadFile({
         url: '/api/products/batch-upload',
         filePath: excelFile,
         name: 'excel',
-        formData: {}
+        formData: uploadFormData
       })
-      console.log('Excel上传结果:', uploadRes.data)
-      const excelData = typeof uploadRes.data === 'string' ? JSON.parse(uploadRes.data) : uploadRes.data
-      const excelKey = excelData?.data?.excelKey || excelData?.excelKey
 
-      // 上传ZIP文件（如果有）
+      let excelKey = ''
+      if (excelRes.statusCode === 200) {
+        const excelData = typeof excelRes.data === 'string' ? JSON.parse(excelRes.data) : excelRes.data
+        excelKey = excelData.data?.excelKey || ''
+      }
+
+      // 上传 ZIP
       let zipKey = ''
       if (zipFile) {
         const zipRes = await Network.uploadFile({
@@ -318,9 +455,10 @@ export default function AdminWebPage() {
           name: 'zip',
           formData: {}
         })
-        console.log('ZIP上传结果:', zipRes.data)
-        const zipData = typeof zipRes.data === 'string' ? JSON.parse(zipRes.data) : zipRes.data
-        zipKey = zipData?.data?.zipKey || zipData?.zipKey
+        if (zipRes.statusCode === 200) {
+          const zipData = typeof zipRes.data === 'string' ? JSON.parse(zipRes.data) : zipRes.data
+          zipKey = zipData.data?.zipKey || ''
+        }
       }
 
       // 执行导入
@@ -329,414 +467,498 @@ export default function AdminWebPage() {
         method: 'POST',
         data: { excelKey, zipKey }
       })
-      console.log('导入结果:', importRes.data)
 
-      const result = importRes.data?.data || importRes.data
-      setImportResult(`导入完成！成功 ${result.success || 0} 条，失败 ${result.failed || 0} 条`)
-      
-      if (result.success > 0) {
+      if (importRes.statusCode === 200) {
+        const result = importRes.data?.data || importRes.data
+        setImportResult(`导入成功！共导入 ${result.count || 0} 个产品`)
         loadProducts()
-        Taro.showToast({ title: '导入成功', icon: 'success' })
+      } else {
+        setImportResult('导入失败，请检查文件格式')
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('批量导入失败:', error)
-      setImportResult(`导入失败：${error.message || '请检查Excel格式'}`)
-      Taro.showToast({ title: '导入失败', icon: 'none' })
+      setImportResult('导入失败：' + String(error))
     } finally {
       setBatchUploading(false)
-      setExcelFile('')
-      setZipFile('')
     }
   }
 
-  const isEdit = Boolean(editingProduct)
+  // 获取一级分类列表
+  const parentCategories = categories.filter(c => c.parent_id === null)
+  
+  // 获取分类树结构
+  const getCategoryTree = () => {
+    return parentCategories.map(parent => ({
+      ...parent,
+      children: categories.filter(c => c.parent_id === parent.id)
+    }))
+  }
+
+  // 获取选中的分类名称
+  const getSelectedCategoryName = () => {
+    if (!formData.categoryId) return '请选择分类'
+    const category = categories.find(c => c.id === parseInt(formData.categoryId))
+    if (category?.parent_id) {
+      const parent = categories.find(c => c.id === category.parent_id)
+      return parent ? `${parent.name} - ${category.name}` : category.name
+    }
+    return category?.name || '请选择分类'
+  }
 
   return (
-    <View className="admin-full-width admin-web-page min-h-screen bg-gray-100" style={{ padding: '24px', minWidth: '1200px' }}>
+    <View className="admin-full-width" style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
       {/* 标题 */}
-      <View style={{ marginBottom: '24px' }}>
-        <Text className="block text-3xl font-bold text-gray-800">产品图册管理后台</Text>
-        <Text className="block text-base text-gray-500" style={{ marginTop: '8px' }}>管理分类和产品信息</Text>
+      <View style={{ padding: '16px 24px', backgroundColor: '#fff', borderBottom: '1px solid #e5e5e5' }}>
+        <Text className="block" style={{ fontSize: '24px', fontWeight: 'bold', color: '#1a1a1a' }}>
+          产品管理后台
+        </Text>
       </View>
 
-      {/* Tab切换 */}
-      <View style={{ display: 'flex', flexDirection: 'row', gap: '12px', marginBottom: '24px' }}>
-        <Button 
-          variant={activeTab === 'products' ? 'default' : 'outline'}
-          onClick={() => { setActiveTab('products'); cancelEdit() }}
+      {/* Tab 切换 */}
+      <View style={{ display: 'flex', borderBottom: '2px solid #e5e5e5', backgroundColor: '#fff' }}>
+        <View 
+          style={{ padding: '12px 24px', cursor: 'pointer', borderBottom: activeTab === 'products' ? '2px solid #b45309' : 'none', marginBottom: '-2px' }}
+          onClick={() => setActiveTab('products')}
         >
-          <Text>产品管理</Text>
-        </Button>
-        <Button 
-          variant={activeTab === 'batch' ? 'default' : 'outline'}
-          onClick={() => { setActiveTab('batch'); cancelEdit() }}
+          <Text className="block" style={{ fontSize: '16px', fontWeight: activeTab === 'products' ? 'bold' : 'normal', color: activeTab === 'products' ? '#b45309' : '#666' }}>
+            产品管理
+          </Text>
+        </View>
+        <View 
+          style={{ padding: '12px 24px', cursor: 'pointer', borderBottom: activeTab === 'batch' ? '2px solid #b45309' : 'none', marginBottom: '-2px' }}
+          onClick={() => setActiveTab('batch')}
         >
-          <Text>批量导入</Text>
-        </Button>
-        <Button 
-          variant={activeTab === 'categories' ? 'default' : 'outline'}
-          onClick={() => { setActiveTab('categories'); cancelEdit() }}
+          <Text className="block" style={{ fontSize: '16px', fontWeight: activeTab === 'batch' ? 'bold' : 'normal', color: activeTab === 'batch' ? '#b45309' : '#666' }}>
+            批量导入
+          </Text>
+        </View>
+        <View 
+          style={{ padding: '12px 24px', cursor: 'pointer', borderBottom: activeTab === 'categories' ? '2px solid #b45309' : 'none', marginBottom: '-2px' }}
+          onClick={() => setActiveTab('categories')}
         >
-          <Text>分类管理</Text>
-        </Button>
+          <Text className="block" style={{ fontSize: '16px', fontWeight: activeTab === 'categories' ? 'bold' : 'normal', color: activeTab === 'categories' ? '#b45309' : '#666' }}>
+            分类管理
+          </Text>
+        </View>
       </View>
 
-      {/* 主内容区 - PC宽屏布局 */}
-      <View style={{ display: 'flex', flexDirection: 'row', gap: '24px' }}>
-        {/* 左侧：表单区 */}
-        <View style={{ width: '400px', flexShrink: 0 }}>
-          {activeTab === 'batch' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Text className="text-xl font-semibold">批量导入产品</Text>
-                </CardTitle>
-              </CardHeader>
-              <CardContent style={{ padding: '24px' }}>
-                {/* 使用说明 */}
-                <View style={{ backgroundColor: '#fef3c7', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
-                  <Text className="block text-base font-semibold text-amber-800" style={{ marginBottom: '8px' }}>使用说明：</Text>
-                  <Text className="block text-sm text-gray-700">1. 准备Excel文件（xlsx格式），包含产品信息</Text>
-                  <Text className="block text-sm text-gray-700">2. Excel列名：名称、型号、分类ID、材质、尺寸、工艺、产地、图片文件名</Text>
-                  <Text className="block text-sm text-gray-700">3. 图片打包成ZIP文件，文件名与Excel中的图片文件名对应</Text>
-                  <Text className="block text-sm text-gray-700">4. 分类ID可在右侧分类列表查看</Text>
+      {/* 内容区域 - 左右布局 */}
+      <View style={{ display: 'flex', minHeight: 'calc(100vh - 100px)' }}>
+        {/* 左侧表单区域 */}
+        <View style={{ width: '60%', padding: '24px', backgroundColor: '#fff' }}>
+          
+          {activeTab === 'products' && (
+            <View>
+              <Text className="block" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+                {editingProduct ? '编辑产品' : '新增产品'}
+              </Text>
+
+              {/* 产品名称 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>产品名称 *</Text>
+                <View style={{ backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '8px 12px' }}>
+                  <Input 
+                    style={{ width: '100%', fontSize: '16px' }}
+                    placeholder="输入产品名称"
+                    value={formData.name}
+                    onInput={(e) => setFormData(prev => ({ ...prev, name: e.detail.value }))}
+                  />
                 </View>
-                
-                {/* Excel文件选择 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base font-medium text-gray-700" style={{ marginBottom: '8px' }}>Excel文件：</Text>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleChooseExcel}
-                    style={{ width: '100%', padding: '12px 16px' }}
+              </View>
+
+              {/* 多型号输入 */}
+              <View style={{ marginBottom: '16px' }}>
+                <View style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <Text className="block" style={{ fontSize: '14px', color: '#666' }}>型号（可添加多个）</Text>
+                  <Button size="sm" onClick={addModel}>+ 添加型号</Button>
+                </View>
+                {formData.models.map((model, index) => (
+                  <View key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
+                    <View style={{ flex: 1, backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '8px 12px' }}>
+                      <Input 
+                        style={{ width: '100%', fontSize: '16px' }}
+                        placeholder={`型号 ${index + 1}`}
+                        value={model}
+                        onInput={(e) => updateModel(index, e.detail.value)}
+                      />
+                    </View>
+                    {formData.models.length > 1 && (
+                      <Button size="sm" variant="outline" onClick={() => removeModel(index)}>删除</Button>
+                    )}
+                  </View>
+                ))}
+              </View>
+
+              {/* 多尺寸输入 */}
+              <View style={{ marginBottom: '16px' }}>
+                <View style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <Text className="block" style={{ fontSize: '14px', color: '#666' }}>尺寸（可添加多个）</Text>
+                  <Button size="sm" onClick={addSize}>+ 添加尺寸</Button>
+                </View>
+                {formData.sizes.map((size, index) => (
+                  <View key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
+                    <View style={{ flex: 1, backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '8px 12px' }}>
+                      <Input 
+                        style={{ width: '100%', fontSize: '16px' }}
+                        placeholder={`尺寸 ${index + 1}（如：120×60×45cm）`}
+                        value={size}
+                        onInput={(e) => updateSize(index, e.detail.value)}
+                      />
+                    </View>
+                    {formData.sizes.length > 1 && (
+                      <Button size="sm" variant="outline" onClick={() => removeSize(index)}>删除</Button>
+                    )}
+                  </View>
+                ))}
+              </View>
+
+              {/* 排列方式 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>排列方式</Text>
+                <View style={{ display: 'flex', gap: '12px' }}>
+                  <View 
+                    style={{ 
+                      flex: 1, 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      backgroundColor: formData.layout === 1 ? '#fef3c7' : '#f5f5f5',
+                      border: formData.layout === 1 ? '2px solid #b45309' : '2px solid transparent',
+                      textAlign: 'center',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setFormData(prev => ({ ...prev, layout: 1 }))}
                   >
-                    <Text className="text-base">{excelFile ? '已选择Excel文件' : '选择Excel文件（xlsx）'}</Text>
-                  </Button>
-                  {excelFile && (
-                    <Text className="block text-sm text-gray-500" style={{ marginTop: '8px' }}>{excelFile.split('/').pop()}</Text>
-                  )}
-                </View>
-                
-                {/* ZIP文件选择 */}
-                <View style={{ marginBottom: '20px' }}>
-                  <Text className="block text-base font-medium text-gray-700" style={{ marginBottom: '8px' }}>图片ZIP包（可选）：</Text>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleChooseZip}
-                    style={{ width: '100%', padding: '12px 16px' }}
+                    <Text className="block" style={{ fontSize: '16px', fontWeight: formData.layout === 1 ? 'bold' : 'normal' }}>单列排版</Text>
+                  </View>
+                  <View 
+                    style={{ 
+                      flex: 1, 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      backgroundColor: formData.layout === 2 ? '#fef3c7' : '#f5f5f5',
+                      border: formData.layout === 2 ? '2px solid #b45309' : '2px solid transparent',
+                      textAlign: 'center',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setFormData(prev => ({ ...prev, layout: 2 }))}
                   >
-                    <Text className="text-base">{zipFile ? '已选择ZIP文件' : '选择图片ZIP包'}</Text>
-                  </Button>
-                  {zipFile && (
-                    <Text className="block text-sm text-gray-500" style={{ marginTop: '8px' }}>{zipFile.split('/').pop()}</Text>
-                  )}
+                    <Text className="block" style={{ fontSize: '16px', fontWeight: formData.layout === 2 ? 'bold' : 'normal' }}>双列排版</Text>
+                  </View>
                 </View>
-                
-                {/* 导入按钮 */}
-                <Button 
-                  className="bg-amber-800"
-                  onClick={handleBatchImport}
-                  disabled={batchUploading || !excelFile}
-                  style={{ width: '100%', padding: '14px 16px' }}
+              </View>
+
+              {/* 分类选择 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>分类 *</Text>
+                <View 
+                  style={{ backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '12px', cursor: 'pointer' }}
+                  onClick={selectCategory}
                 >
-                  <Text className="text-white text-base">
-                    {batchUploading ? '导入中...' : '开始批量导入'}
+                  <Text className="block" style={{ fontSize: '16px', color: formData.categoryId ? '#1a1a1a' : '#999' }}>
+                    {getSelectedCategoryName()}
                   </Text>
-                </Button>
-                
-                {/* 导入结果 */}
-                {importResult && (
-                  <View style={{ backgroundColor: '#f3f4f6', borderRadius: '8px', padding: '12px', marginTop: '16px' }}>
-                    <Text className="block text-base">{importResult}</Text>
+                </View>
+              </View>
+
+              {/* 图片上传 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>产品图片</Text>
+                {currentImage ? (
+                  <View style={{ position: 'relative' }}>
+                    <Image 
+                      src={currentImage}
+                      style={{ width: '200px', height: '200px', borderRadius: '8px', objectFit: 'cover' }}
+                      mode="aspectFill"
+                    />
+                    <Button 
+                      size="sm" 
+                      style={{ position: 'absolute', top: '8px', right: '8px' }}
+                      onClick={chooseImage}
+                    >
+                      {editingProduct ? '更换图片' : '重新选择'}
+                    </Button>
+                  </View>
+                ) : (
+                  <View 
+                    style={{ width: '200px', height: '200px', backgroundColor: '#f5f5f5', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px dashed #ccc' }}
+                    onClick={chooseImage}
+                  >
+                    <Text className="block" style={{ fontSize: '14px', color: '#999', textAlign: 'center' }}>
+                      点击选择图片
+                    </Text>
                   </View>
                 )}
-              </CardContent>
-            </Card>
-          ) : activeTab === 'products' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Text className="text-xl font-semibold">
-                    {editingProduct ? `编辑产品：${editingProduct.name}` : '添加产品'}
-                  </Text>
-                </CardTitle>
-              </CardHeader>
-              <CardContent style={{ padding: '24px' }}>
-                {/* 图片选择 */}
-                <View style={{ marginBottom: '20px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>产品图片</Text>
-                  <View style={{ display: 'flex', flexDirection: 'row', gap: '12px', alignItems: 'center' }}>
-                    {currentImage ? (
-                      <Image 
-                        style={{ width: '120px', height: '120px', borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                        src={currentImage}
-                        mode="aspectFill"
-                      />
-                    ) : (
-                      <View 
-                        style={{ width: '120px', height: '120px', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        onClick={chooseImage}
-                      >
-                        <Text className="block text-gray-400">点击选择图片</Text>
-                      </View>
-                    )}
-                    <Button variant="outline" onClick={chooseImage} style={{ padding: '10px 16px' }}>
-                      <Text className="text-base">{isEdit ? '更换图片' : '选择图片'}</Text>
-                    </Button>
-                  </View>
-                </View>
+              </View>
 
-                {/* 分类选择 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>所属分类 *</Text>
-                  <View 
-                    style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px', display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                    onClick={() => {
-                      if (categories.length === 0) {
-                        Taro.showToast({ title: '请先添加分类', icon: 'none' })
-                        return
+              {/* 操作按钮 */}
+              <View style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <Button 
+                  style={{ flex: 1 }}
+                  onClick={handleSubmit}
+                  disabled={uploading}
+                >
+                  {uploading ? '提交中...' : (editingProduct ? '保存修改' : '提交产品')}
+                </Button>
+                <Button 
+                  style={{ flex: 1 }}
+                  variant="outline"
+                  onClick={resetForm}
+                >
+                  重置
+                </Button>
+              </View>
+            </View>
+          )}
+
+          {activeTab === 'categories' && (
+            <View>
+              <Text className="block" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+                {editingCategory ? '编辑分类' : '新增分类'}
+              </Text>
+
+              {/* 分类名称 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>分类名称 *</Text>
+                <View style={{ backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '8px 12px' }}>
+                  <Input 
+                    style={{ width: '100%', fontSize: '16px' }}
+                    placeholder="输入分类名称"
+                    value={newCategoryName}
+                    onInput={(e) => setNewCategoryName(e.detail.value)}
+                  />
+                </View>
+              </View>
+
+              {/* 父级分类 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>父级分类（可选，不选则为一级分类）</Text>
+                <View 
+                  style={{ backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '12px', cursor: 'pointer' }}
+                  onClick={async () => {
+                    if (parentCategories.length === 0) {
+                      Taro.showToast({ title: '暂无一级分类', icon: 'none' })
+                      return
+                    }
+                    const options = parentCategories.map(c => c.name).concat('无（作为一级分类）')
+                    try {
+                      const res = await Taro.showActionSheet({ itemList: options })
+                      if (res.tapIndex < parentCategories.length) {
+                        setNewCategoryParent(String(parentCategories[res.tapIndex].id))
+                      } else {
+                        setNewCategoryParent('')
                       }
-                      Taro.showActionSheet({
-                        itemList: categories.map(cat => cat.name),
-                        success: (res) => {
-                          setFormData({ ...formData, categoryId: String(categories[res.tapIndex].id) })
-                        }
-                      })
+                    } catch (error) {
+                      console.log('取消选择')
+                    }
+                  }}
+                >
+                  <Text className="block" style={{ fontSize: '16px', color: newCategoryParent ? '#1a1a1a' : '#999' }}>
+                    {newCategoryParent ? parentCategories.find(c => c.id === parseInt(newCategoryParent))?.name || '选择父级分类' : '选择父级分类（可选）'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* 操作按钮 */}
+              <View style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <Button 
+                  style={{ flex: 1 }}
+                  onClick={editingCategory ? handleSaveCategory : handleAddCategory}
+                >
+                  {editingCategory ? '保存修改' : '添加分类'}
+                </Button>
+                {editingCategory && (
+                  <Button 
+                    style={{ flex: 1 }}
+                    variant="outline"
+                    onClick={() => {
+                      setEditingCategory(null)
+                      setNewCategoryName('')
+                      setNewCategoryParent('')
                     }}
                   >
-                    <Text className="block text-base">
-                      {formData.categoryId 
-                        ? categories.find(c => String(c.id) === formData.categoryId)?.name || '请选择分类'
-                        : '请选择分类'}
-                    </Text>
-                    <Text className="block text-gray-400">▼</Text>
-                  </View>
-                </View>
-
-                {/* 产品名称 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>产品名称 *</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：明式圈椅"
-                      value={formData.name}
-                      onInput={(e: any) => setFormData({ ...formData, name: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 产品型号 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>产品型号</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：MXQY-001"
-                      value={formData.model}
-                      onInput={(e: any) => setFormData({ ...formData, model: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 材质 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>材质</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：北美黑胡桃木"
-                      value={formData.material}
-                      onInput={(e: any) => setFormData({ ...formData, material: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 尺寸 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>尺寸</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：120×60×45cm"
-                      value={formData.size}
-                      onInput={(e: any) => setFormData({ ...formData, size: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 工艺 */}
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>工艺</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：榫卯结构，手工打磨"
-                      value={formData.process}
-                      onInput={(e: any) => setFormData({ ...formData, process: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 产地 */}
-                <View style={{ marginBottom: '20px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>产地</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：浙江东阳"
-                      value={formData.origin}
-                      onInput={(e: any) => setFormData({ ...formData, origin: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 按钮 */}
-                <View style={{ display: 'flex', flexDirection: 'row', gap: '12px' }}>
-                  <Button 
-                    className="bg-amber-800 text-white flex-1"
-                    onClick={handleSubmit}
-                    disabled={uploading}
-                    style={{ padding: '14px 16px' }}
-                  >
-                    <Text className="text-base">{uploading ? '保存中...' : (isEdit ? '保存修改' : '提交产品')}</Text>
+                    取消编辑
                   </Button>
-                  {isEdit && (
-                    <Button 
-                      variant="outline"
-                      className="flex-1"
-                      onClick={cancelEdit}
-                      style={{ padding: '14px 16px' }}
-                    >
-                      <Text className="text-base">取消</Text>
-                    </Button>
-                  )}
+                )}
+              </View>
+            </View>
+          )}
+
+          {activeTab === 'batch' && (
+            <View>
+              <Text className="block" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+                批量导入产品
+              </Text>
+
+              <View style={{ marginBottom: '16px', padding: '16px', backgroundColor: '#fef3c7', borderRadius: '8px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#92400e', marginBottom: '8px' }}>
+                  Excel 表格格式要求：
+                </Text>
+                <Text className="block" style={{ fontSize: '12px', color: '#92400e' }}>
+                  列名：名称、型号、尺寸、排列方式、分类名称、图片文件名{'\n'}
+                  型号和尺寸可以有多个，用逗号分隔（如：型号1,型号2）{'\n'}
+                  排列方式：1（单列）或 2（双列）
+                </Text>
+              </View>
+
+              {/* Excel 文件 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Excel 文件 *</Text>
+                <View style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Button onClick={chooseExcelFile}>选择文件</Button>
+                  <Text className="block" style={{ fontSize: '14px', color: '#666' }}>
+                    {excelFile ? '已选择' : '未选择'}
+                  </Text>
                 </View>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Text className="text-xl font-semibold">添加分类</Text>
-                </CardTitle>
-              </CardHeader>
-              <CardContent style={{ padding: '24px' }}>
-                <View style={{ marginBottom: '16px' }}>
-                  <Text className="block text-base text-gray-600" style={{ marginBottom: '8px' }}>分类名称 *</Text>
-                  <View style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px' }}>
-                    <Input 
-                      style={{ width: '100%', backgroundColor: 'transparent', fontSize: '16px' }}
-                      placeholder="如：座椅系列"
-                      value={newCategory.name}
-                      onInput={(e: any) => setNewCategory({ name: e.detail.value })}
-                    />
-                  </View>
+              </View>
+
+              {/* ZIP 文件 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>图片 ZIP 包（可选）</Text>
+                <View style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Button onClick={chooseZipFile}>选择 ZIP</Button>
+                  <Text className="block" style={{ fontSize: '14px', color: '#666' }}>
+                    {zipFile ? '已选择' : '未选择'}
+                  </Text>
                 </View>
-                <Button 
-                  className="bg-amber-800 text-white w-full"
-                  onClick={handleAddCategory}
-                  style={{ padding: '14px 16px' }}
-                >
-                  <Text className="text-base">提交分类</Text>
-                </Button>
-              </CardContent>
-            </Card>
+              </View>
+
+              {/* 导入按钮 */}
+              <Button 
+                style={{ marginTop: '24px' }}
+                onClick={handleBatchImport}
+                disabled={batchUploading}
+              >
+                {batchUploading ? '导入中...' : '开始批量导入'}
+              </Button>
+
+              {/* 导入结果 */}
+              {importResult && (
+                <View style={{ marginTop: '16px', padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
+                  <Text className="block" style={{ fontSize: '14px' }}>{importResult}</Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
 
-        {/* 右侧：列表区 */}
-        <View style={{ flex: 1, minWidth: '400px' }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <Text className="text-xl font-semibold">
-                  {activeTab === 'products' ? '产品列表' : '分类列表'}
-                </Text>
-              </CardTitle>
-            </CardHeader>
-            <CardContent style={{ padding: '24px' }}>
+        {/* 右侧列表区域 */}
+        <View style={{ width: '40%', padding: '24px', backgroundColor: '#fafafa', borderLeft: '1px solid #e5e5e5' }}>
+          {activeTab === 'products' && (
+            <View>
+              <Text className="block" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+                产品列表 ({products.length})
+              </Text>
+              
               {loading ? (
-                <Text className="block text-gray-400 text-base">加载中...</Text>
-              ) : activeTab === 'products' ? (
-                products.length > 0 ? (
-                  <View style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {products.map(product => (
-                      <View 
-                        key={product.id}
-                        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px' }}
-                      >
-                        <View 
-                          style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px', flex: 1 }}
-                          onClick={() => startEditProduct(product)}
-                        >
-                          {product.image_url ? (
-                            <Image style={{ width: '80px', height: '80px', borderRadius: '8px' }} src={product.image_url} mode="aspectFill" />
-                          ) : (
-                            <View style={{ width: '80px', height: '80px', borderRadius: '8px', backgroundColor: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Text className="block text-gray-400">无图</Text>
-                            </View>
-                          )}
-                          <View style={{ flex: 1 }}>
-                            <Text className="block text-lg font-medium text-gray-800">{product.name}</Text>
-                            <Text className="block text-base text-gray-500">{product.categories?.name || '未分类'}</Text>
-                            {product.model && (
-                              <Text className="block text-sm text-gray-400">型号：{product.model}</Text>
-                            )}
+                <Text className="block" style={{ fontSize: '14px', color: '#999' }}>加载中...</Text>
+              ) : products.length === 0 ? (
+                <Text className="block" style={{ fontSize: '14px', color: '#999' }}>暂无产品，请添加</Text>
+              ) : (
+                <View style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {products.map(product => (
+                    <View key={product.id} style={{ padding: '12px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e5e5' }}>
+                      <View style={{ display: 'flex', gap: '12px' }}>
+                        {product.image_url && (
+                          <Image 
+                            src={product.image_url}
+                            style={{ width: '60px', height: '60px', borderRadius: '4px', objectFit: 'cover' }}
+                            mode="aspectFill"
+                          />
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text className="block" style={{ fontSize: '16px', fontWeight: 'bold' }}>{product.name}</Text>
+                          <Text className="block" style={{ fontSize: '12px', color: '#666' }}>
+                            型号: {(product.models || []).join(', ') || '无'}
+                          </Text>
+                          <Text className="block" style={{ fontSize: '12px', color: '#666' }}>
+                            尺寸: {(product.sizes || []).join(', ') || '无'}
+                          </Text>
+                          <Text className="block" style={{ fontSize: '12px', color: '#666' }}>
+                            排列: {product.layout === 2 ? '双列' : '单列'} | 分类: {product.category_name || '无'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <Button size="sm" onClick={() => handleEdit(product)}>编辑</Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDelete(product.id)}>删除</Button>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {activeTab === 'categories' && (
+            <View>
+              <Text className="block" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+                分类列表
+              </Text>
+              
+              {categories.length === 0 ? (
+                <Text className="block" style={{ fontSize: '14px', color: '#999' }}>暂无分类，请添加</Text>
+              ) : (
+                <View style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {getCategoryTree().map(parent => (
+                    <View key={parent.id} style={{ marginBottom: '8px' }}>
+                      <View style={{ padding: '12px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #b45309' }}>
+                        <View style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text className="block" style={{ fontSize: '16px', fontWeight: 'bold', color: '#b45309' }}>
+                            {parent.name}
+                          </Text>
+                          <View style={{ display: 'flex', gap: '8px' }}>
+                            <Button size="sm" onClick={() => handleEditCategory(parent)}>编辑</Button>
+                            <Button size="sm" variant="outline" onClick={() => handleDeleteCategory(parent.id)}>删除</Button>
                           </View>
                         </View>
-                        <View style={{ display: 'flex', flexDirection: 'row', gap: '8px' }}>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => startEditProduct(product)}
-                            style={{ padding: '8px 16px' }}
-                          >
-                            <Text className="text-amber-800">编辑</Text>
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => handleDeleteProduct(product.id)}
-                            style={{ padding: '8px 16px' }}
-                          >
-                            <Text className="text-red-500">删除</Text>
-                          </Button>
-                        </View>
                       </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text className="block text-gray-400 text-base">暂无产品，请先添加分类</Text>
-                )
-              ) : (
-                categories.length > 0 ? (
-                  <View style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {categories.map(cat => (
-                      <View 
-                        key={cat.id}
-                        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px' }}
-                      >
-                        <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '12px' }}>
-                          <Badge className="bg-amber-800 text-white" style={{ padding: '6px 12px' }}>
-                            ID: {cat.id}
-                          </Badge>
-                          <Text className="block text-lg text-gray-800">{cat.name}</Text>
+                      {/* 二级分类 */}
+                      {parent.children && parent.children.length > 0 && (
+                        <View style={{ marginTop: '4px', paddingLeft: '16px' }}>
+                          {parent.children.map(child => (
+                            <View key={child.id} style={{ padding: '8px 12px', backgroundColor: '#f5f5f5', borderRadius: '4px', marginBottom: '4px' }}>
+                              <View style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text className="block" style={{ fontSize: '14px', color: '#666' }}>
+                                  {child.name}
+                                </Text>
+                                <View style={{ display: 'flex', gap: '4px' }}>
+                                  <Button size="sm" onClick={() => handleEditCategory(child)}>编辑</Button>
+                                  <Button size="sm" variant="outline" onClick={() => handleDeleteCategory(child.id)}>删除</Button>
+                                </View>
+                              </View>
+                            </View>
+                          ))}
                         </View>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          style={{ padding: '8px 16px' }}
-                        >
-                          <Text className="text-red-500">删除</Text>
-                        </Button>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text className="block text-gray-400 text-base">暂无分类，请先添加</Text>
-                )
+                      )}
+                    </View>
+                  ))}
+                </View>
               )}
-            </CardContent>
-          </Card>
+            </View>
+          )}
+
+          {activeTab === 'batch' && (
+            <View>
+              <Text className="block" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+                导入说明
+              </Text>
+              <View style={{ padding: '16px', backgroundColor: '#fff', borderRadius: '8px' }}>
+                <Text className="block" style={{ fontSize: '14px', marginBottom: '12px' }}>
+                  1. 准备 Excel 文件，包含以下列：
+                </Text>
+                <Text className="block" style={{ fontSize: '12px', color: '#666', marginLeft: '16px' }}>
+                  名称、型号、尺寸、排列方式、分类名称、图片文件名{'\n'}
+                  （型号和尺寸可以有多个，用逗号分隔）
+                </Text>
+                <Text className="block" style={{ fontSize: '14px', marginBottom: '12px', marginTop: '12px' }}>
+                  2. 将产品图片打包成 ZIP 文件
+                </Text>
+                <Text className="block" style={{ fontSize: '12px', color: '#666', marginLeft: '16px' }}>
+                  图片文件名与 Excel 中的图片文件名对应
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </View>

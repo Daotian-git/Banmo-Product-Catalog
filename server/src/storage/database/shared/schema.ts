@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, varchar, numeric, jsonb, integer, index } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, varchar, numeric, jsonb, integer, index, boolean } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -7,18 +7,19 @@ export const healthCheck = pgTable("health_check", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
-// 产品分类表
+// 产品分类表（支持二级分类）
 export const categories = pgTable(
 	"categories",
 	{
 		id: serial().primaryKey(),
 		name: varchar("name", { length: 50 }).notNull(),
-		icon: varchar("icon", { length: 10 }).notNull().default('📋'),
+		parent_id: integer("parent_id").references(() => categories.id),  // 父分类ID，一级分类为null
 		sort_order: integer("sort_order").notNull().default(0),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
 		index("categories_sort_order_idx").on(table.sort_order),
+		index("categories_parent_id_idx").on(table.parent_id),
 	]
 );
 
@@ -27,23 +28,19 @@ export const products = pgTable(
 	"products",
 	{
 		id: serial().primaryKey(),
-		name: varchar("name", { length: 100 }).notNull(),
-		category_id: integer("category_id").notNull().references(() => categories.id),
-		price: numeric("price", { precision: 10, scale: 2 }),  // 可选，图册不展示价格
-		model: varchar("model", { length: 50 }),  // 产品型号
-		image_key: varchar("image_key", { length: 255 }),  // 对象存储key
-		image_url: varchar("image_url", { length: 500 }),  // 签名URL（临时）
-		material: varchar("material", { length: 100 }),
-		size: varchar("size", { length: 100 }),
-		process: varchar("process", { length: 100 }),
-		origin: varchar("origin", { length: 100 }),
+		name: varchar("name", { length: 100 }).notNull(),           // 产品名称
+		category_id: integer("category_id").notNull().references(() => categories.id),  // 二级分类ID
+		models: jsonb("models").notNull().default(sql`'[]'::jsonb`), // 型号列表，如 [{"model": "MJ-001", "size": "120×60×45"}]
+		image_key: varchar("image_key", { length: 255 }),            // 对象存储key
+		image_url: varchar("image_url", { length: 500 }),            // 图片URL
+		layout: integer("layout").notNull().default(1),              // 排列方式：1=单列，2=双列
 		sort_order: integer("sort_order").notNull().default(0),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }),
 	},
 	(table) => [
-		index("products_category_id_idx").on(table.category_id),  // 外键索引
-		index("products_sort_order_idx").on(table.sort_order),     // 排序索引
-		index("products_created_at_idx").on(table.created_at),     // 时间索引
+		index("products_category_id_idx").on(table.category_id),
+		index("products_sort_order_idx").on(table.sort_order),
+		index("products_layout_idx").on(table.layout),
 	]
 );

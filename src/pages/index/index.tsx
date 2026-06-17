@@ -7,15 +7,12 @@ import { Network } from '@/network'
 interface Product {
   id: number
   name: string
-  model?: string
-  categories?: {
-    name: string
-  }
+  models: string[] // 多个型号
   image_url: string
-  material?: string
-  size?: string
-  process?: string
-  origin?: string
+  sizes: string[] // 多个尺寸
+  layout: number // 排列方式：1单列，2双列
+  category_id: number
+  category_name?: string
 }
 
 const IndexPage = () => {
@@ -40,6 +37,63 @@ const IndexPage = () => {
     }
   }
 
+  // 渲染单个产品卡片
+  const renderProductCard = (product: Product, isDoubleColumn: boolean = false) => {
+    return (
+      <Card
+        key={product.id}
+        className="bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm"
+      >
+        {/* 图册风格：大图展示 */}
+        <View className="relative">
+          {product.image_url ? (
+            <Image
+              className={isDoubleColumn ? "w-full h-36" : "w-full h-64"}
+              src={product.image_url}
+              mode="aspectFill"
+            />
+          ) : (
+            <View className={isDoubleColumn ? "w-full h-36 bg-gray-200 flex items-center justify-center" : "w-full h-64 bg-gray-200 flex items-center justify-center"}>
+              <Text className="block text-gray-400 text-xs">暂无图片</Text>
+            </View>
+          )}
+          {/* 分类标签 */}
+          {product.category_name && (
+            <Badge className="absolute top-2 right-2 bg-amber-800 text-white px-2 py-1 rounded text-xs">
+              {product.category_name}
+            </Badge>
+          )}
+        </View>
+        
+        {/* 产品参数 - 直接展示在图片下面 */}
+        <CardContent className={isDoubleColumn ? "p-2" : "p-4"}>
+          {/* 名称 */}
+          <Text className={isDoubleColumn ? "block text-sm font-medium text-gray-800" : "block text-lg font-medium text-gray-800"}>
+            {product.name}
+          </Text>
+          
+          {/* 型号列表 */}
+          {product.models && product.models.length > 0 && (
+            <View className="mt-1">
+              <Text className={isDoubleColumn ? "block text-xs text-gray-500" : "block text-sm text-gray-500"}>
+                型号: {product.models.join(' / ')}
+              </Text>
+            </View>
+          )}
+          
+          {/* 尺寸列表 */}
+          {product.sizes && product.sizes.length > 0 && (
+            <View className="mt-1">
+              <Text className={isDoubleColumn ? "block text-xs text-gray-500" : "block text-sm text-gray-500"}>
+                尺寸: {product.sizes.join(' / ')}
+              </Text>
+            </View>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (loading) {
     return (
       <View className="min-h-full bg-gray-50 flex flex-col items-center justify-center">
@@ -47,6 +101,10 @@ const IndexPage = () => {
       </View>
     )
   }
+
+  // 将产品按排列方式分组
+  const singleColumnProducts = products.filter(p => p.layout === 1 || !p.layout)
+  const doubleColumnProducts = products.filter(p => p.layout === 2)
 
   return (
     <View className="min-h-full bg-gray-50 pb-12">
@@ -56,76 +114,23 @@ const IndexPage = () => {
         <Text className="block text-sm text-gray-500 mt-1">新中式雅韵，匠心之作</Text>
       </View>
 
-      {/* 产品列表 - 单列展示 */}
+      {/* 产品列表 */}
       <View className="px-4">
         {products.length > 0 ? (
           <View className="flex flex-col gap-4">
-            {products.map(product => (
-              <Card
-                key={product.id}
-                className="bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm"
-              >
-                {/* 图册风格：大图展示 */}
-                <View className="relative">
-                  {product.image_url ? (
-                    <Image
-                      className="w-full h-64"
-                      src={product.image_url}
-                      mode="aspectFill"
-                    />
-                  ) : (
-                    <View className="w-full h-64 bg-gray-200 flex items-center justify-center">
-                      <Text className="block text-gray-400 text-sm">暂无图片</Text>
-                    </View>
-                  )}
-                  {/* 分类标签 */}
-                  {product.categories?.name && (
-                    <Badge className="absolute top-3 right-3 bg-amber-800 text-white px-3 py-1 rounded text-xs">
-                      {product.categories.name}
-                    </Badge>
-                  )}
-                </View>
-                
-                {/* 产品参数 - 直接展示在图片下面 */}
-                <CardContent className="p-4">
-                  {/* 名称和型号 */}
-                  <View className="flex flex-row items-center gap-2">
-                    <Text className="block text-lg font-medium text-gray-800">{product.name}</Text>
-                    {product.model && (
-                      <Text className="block text-sm text-gray-500">({product.model})</Text>
-                    )}
+            {/* 单列产品 */}
+            {singleColumnProducts.map(product => renderProductCard(product, false))}
+            
+            {/* 双列产品 - 两列布局 */}
+            {doubleColumnProducts.length > 0 && (
+              <View className="flex flex-row gap-2">
+                {doubleColumnProducts.map(product => (
+                  <View key={product.id} className="flex-1">
+                    {renderProductCard(product, true)}
                   </View>
-                  
-                  {/* 参数网格 */}
-                  <View className="mt-3 grid grid-cols-2 gap-2">
-                    {product.material && (
-                      <View className="flex flex-row items-center gap-1">
-                        <Text className="block text-xs text-gray-400">材质：</Text>
-                        <Text className="block text-xs text-gray-600">{product.material}</Text>
-                      </View>
-                    )}
-                    {product.size && (
-                      <View className="flex flex-row items-center gap-1">
-                        <Text className="block text-xs text-gray-400">尺寸：</Text>
-                        <Text className="block text-xs text-gray-600">{product.size}</Text>
-                      </View>
-                    )}
-                    {product.process && (
-                      <View className="flex flex-row items-center gap-1">
-                        <Text className="block text-xs text-gray-400">工艺：</Text>
-                        <Text className="block text-xs text-gray-600">{product.process}</Text>
-                      </View>
-                    )}
-                    {product.origin && (
-                      <View className="flex flex-row items-center gap-1">
-                        <Text className="block text-xs text-gray-400">产地：</Text>
-                        <Text className="block text-xs text-gray-600">{product.origin}</Text>
-                      </View>
-                    )}
-                  </View>
-                </CardContent>
-              </Card>
-            ))}
+                ))}
+              </View>
+            )}
           </View>
         ) : (
           <View className="flex flex-col items-center justify-center py-16">
