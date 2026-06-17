@@ -81,10 +81,8 @@ export class ProductsController {
     @UploadedFile() file?: Express.Multer.File
   ) {
     console.log('更新产品请求:', id, body)
-    const features = body.features ? JSON.parse(body.features) : undefined
     const result = await this.productsService.updateProduct(parseInt(id), {
       ...body,
-      features,
       imageFile: file
     })
     return { code: 200, msg: 'success', data: result }

@@ -5,11 +5,11 @@ import { S3Storage } from 'coze-coding-dev-sdk'
 interface CreateProductData {
   name: string
   category_id?: number
+  model?: string        // 产品型号
   price?: string
   description?: string
   material?: string
   size?: string
-  weight?: string
   process?: string
   origin?: string
   features?: string[]
@@ -21,14 +21,12 @@ interface CreateProductData {
 interface UpdateProductData {
   name?: string
   category_id?: number
+  model?: string        // 产品型号
   price?: string
-  description?: string
   material?: string
   size?: string
-  weight?: string
   process?: string
   origin?: string
-  features?: string[]
   imageFile?: Express.Multer.File
 }
 
@@ -121,14 +119,10 @@ export class ProductsService {
         name: data.name,
         category_id: data.category_id,
         model: data.model,
-        price: data.price,
-        description: data.description,
         material: data.material,
         size: data.size,
-        weight: data.weight,
         process: data.process,
         origin: data.origin,
-        features: data.features,
         image_key: imageKey,
         image_url: imageUrl,
         sort_order: 0
