@@ -29,7 +29,7 @@ export const products = pgTable(
 		id: serial().primaryKey(),
 		name: varchar("name", { length: 100 }).notNull(),
 		category_id: integer("category_id").notNull().references(() => categories.id),
-		price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+		price: numeric("price", { precision: 10, scale: 2 }),  // 可选，图册不展示价格
 		description: varchar("description", { length: 500 }),
 		image_key: varchar("image_key", { length: 255 }),  // 对象存储key
 		image_url: varchar("image_url", { length: 500 }),  // 签名URL（临时）
