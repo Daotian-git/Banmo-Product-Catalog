@@ -3,6 +3,7 @@ import Taro from '@tarojs/taro'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Settings } from 'lucide-react-taro'
 
 const ProfilePage = () => {
   const handleCall = () => {
@@ -12,6 +13,10 @@ const ProfilePage = () => {
       showCancel: false,
       confirmText: '知道了'
     })
+  }
+
+  const handleAdmin = () => {
+    Taro.navigateTo({ url: '/pages/admin/index' })
   }
 
   return (
@@ -61,6 +66,16 @@ const ProfilePage = () => {
             >
               <Text className="block text-sm text-gray-700">联系客服</Text>
               <Text className="block text-xs text-gray-400">400-888-8888</Text>
+            </View>
+            <View
+              className="flex flex-row items-center justify-between px-4 py-3 cursor-pointer"
+              onClick={handleAdmin}
+            >
+              <View className="flex flex-row items-center gap-2">
+                <Settings size={16} color="#6b7280" />
+                <Text className="block text-sm text-gray-700">产品管理</Text>
+              </View>
+              <Text className="block text-xs text-gray-400">管理后台</Text>
             </View>
           </View>
         </CardContent>
