@@ -1,18 +1,20 @@
 import { View, Text, Image } from '@tarojs/components'
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Network } from '@/network'
+
+interface ProductModel {
+  model: string
+  size: string
+}
 
 interface Product {
   id: number
   name: string
-  models: string[] // 多个型号
+  models: ProductModel[] // 型号和尺寸数组
   image_url: string
-  sizes: string[] // 多个尺寸
   layout: number // 排列方式：1单列，2双列
   category_id: number
-  category_name?: string
+  category_name?: string // 完整分类路径如"乌金木-沙发"
 }
 
 const IndexPage = () => {
@@ -39,65 +41,104 @@ const IndexPage = () => {
 
   // 渲染单个产品卡片
   const renderProductCard = (product: Product, isDoubleColumn: boolean = false) => {
+    const cardStyle = isDoubleColumn 
+      ? { backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden', width: '100%' }
+      : { backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden' }
+    
     return (
-      <Card
-        key={product.id}
-        className="bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm"
-      >
-        {/* 图册风格：大图展示 */}
-        <View className="relative">
+      <View key={product.id} style={cardStyle}>
+        {/* 图片展示 - 不裁切，自适应 */}
+        <View style={{ position: 'relative', width: '100%' }}>
           {product.image_url ? (
             <Image
-              className={isDoubleColumn ? "w-full h-36" : "w-full h-64"}
+              style={{ width: '100%', height: isDoubleColumn ? '180px' : '300px' }}
               src={product.image_url}
-              mode="aspectFill"
+              mode="aspectFit"
             />
           ) : (
-            <View className={isDoubleColumn ? "w-full h-36 bg-gray-200 flex items-center justify-center" : "w-full h-64 bg-gray-200 flex items-center justify-center"}>
-              <Text className="block text-gray-400 text-xs">暂无图片</Text>
+            <View style={{ 
+              width: '100%', 
+              height: isDoubleColumn ? '180px' : '300px', 
+              backgroundColor: '#f5f5f5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            >
+              <Text style={{ color: '#999', fontSize: '12px' }}>暂无图片</Text>
             </View>
-          )}
-          {/* 分类标签 */}
-          {product.category_name && (
-            <Badge className="absolute top-2 right-2 bg-amber-800 text-white px-2 py-1 rounded text-xs">
-              {product.category_name}
-            </Badge>
           )}
         </View>
         
-        {/* 产品参数 - 直接展示在图片下面 */}
-        <CardContent className={isDoubleColumn ? "p-2" : "p-4"}>
+        {/* 产品信息 */}
+        <View style={{ padding: isDoubleColumn ? '8px' : '16px' }}>
           {/* 名称 */}
-          <Text className={isDoubleColumn ? "block text-sm font-medium text-gray-800" : "block text-lg font-medium text-gray-800"}>
+          <Text style={{ 
+            display: 'block',
+            fontSize: isDoubleColumn ? '14px' : '18px',
+            fontWeight: 'bold',
+            color: '#333',
+            marginBottom: '8px'
+          }}
+          >
             {product.name}
           </Text>
           
-          {/* 型号列表 */}
+          {/* 型号和对应尺寸 */}
           {product.models && product.models.length > 0 && (
-            <View className="mt-1">
-              <Text className={isDoubleColumn ? "block text-xs text-gray-500" : "block text-sm text-gray-500"}>
-                型号: {product.models.join(' / ')}
-              </Text>
+            <View style={{ marginBottom: '8px' }}>
+              {product.models.map((m, idx) => (
+                <Text
+                  key={idx}
+                  style={{
+                    display: 'block',
+                    fontSize: isDoubleColumn ? '12px' : '14px',
+                    color: '#666',
+                    marginBottom: '4px'
+                  }}
+                >
+                  {m.model} · {m.size}
+                </Text>
+              ))}
             </View>
           )}
           
-          {/* 尺寸列表 */}
-          {product.sizes && product.sizes.length > 0 && (
-            <View className="mt-1">
-              <Text className={isDoubleColumn ? "block text-xs text-gray-500" : "block text-sm text-gray-500"}>
-                尺寸: {product.sizes.join(' / ')}
-              </Text>
-            </View>
+          {/* 分类（小字显示完整路径） */}
+          {product.category_name && (
+            <Text style={{ 
+              display: 'block',
+              fontSize: '10px',
+              color: '#999'
+            }}
+            >
+              {product.category_name}
+            </Text>
           )}
-        </CardContent>
-      </Card>
+        </View>
+      </View>
     )
+  }
+
+  // 将双列产品按两行分组，处理奇数情况
+  const groupDoubleColumnProducts = (productList: Product[]) => {
+    const groups: (Product | null)[][] = []
+    for (let i = 0; i < productList.length; i += 2) {
+      const group: (Product | null)[] = [productList[i]]
+      if (i + 1 < productList.length) {
+        group.push(productList[i + 1])
+      } else {
+        // 奇数时最后一个位置空着
+        group.push(null)
+      }
+      groups.push(group)
+    }
+    return groups
   }
 
   if (loading) {
     return (
-      <View className="min-h-full bg-gray-50 flex flex-col items-center justify-center">
-        <Text className="block text-gray-500">加载中...</Text>
+      <View style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#999' }}>加载中...</Text>
       </View>
     )
   }
@@ -105,36 +146,58 @@ const IndexPage = () => {
   // 将产品按排列方式分组
   const singleColumnProducts = products.filter(p => p.layout === 1 || !p.layout)
   const doubleColumnProducts = products.filter(p => p.layout === 2)
+  const doubleColumnGroups = groupDoubleColumnProducts(doubleColumnProducts)
 
   return (
-    <View className="min-h-full bg-gray-50 pb-12">
+    <View style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', paddingBottom: '60px' }}>
       {/* 标题 */}
-      <View className="px-4 pt-4 mb-4">
-        <Text className="block text-xl font-semibold text-gray-700">产品图册</Text>
-        <Text className="block text-sm text-gray-500 mt-1">新中式雅韵，匠心之作</Text>
+      <View style={{ padding: '16px', marginBottom: '16px' }}>
+        <Text style={{ display: 'block', fontSize: '20px', fontWeight: 'bold', color: '#333' }}>
+          产品图册
+        </Text>
+        <Text style={{ display: 'block', fontSize: '14px', color: '#666', marginTop: '4px' }}>
+          新中式雅韵，匠心之作
+        </Text>
       </View>
 
       {/* 产品列表 */}
-      <View className="px-4">
+      <View style={{ padding: '0 16px' }}>
         {products.length > 0 ? (
-          <View className="flex flex-col gap-4">
+          <View>
             {/* 单列产品 */}
-            {singleColumnProducts.map(product => renderProductCard(product, false))}
-            
-            {/* 双列产品 - 两列布局 */}
-            {doubleColumnProducts.length > 0 && (
-              <View className="flex flex-row gap-2">
-                {doubleColumnProducts.map(product => (
-                  <View key={product.id} className="flex-1">
-                    {renderProductCard(product, true)}
-                  </View>
-                ))}
+            {singleColumnProducts.map(product => (
+              <View key={product.id} style={{ marginBottom: '16px' }}>
+                {renderProductCard(product, false)}
               </View>
-            )}
+            ))}
+            
+            {/* 双列产品 - 两列布局，奇数时最后一个位置空着 */}
+            {doubleColumnGroups.map((group, groupIdx) => (
+              <View 
+                key={groupIdx}
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'row', 
+                  gap: '8px',
+                  marginBottom: '8px'
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  {group[0] ? renderProductCard(group[0], true) : (
+                    <View style={{ backgroundColor: 'transparent', height: '280px' }} />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  {group[1] ? renderProductCard(group[1], true) : (
+                    <View style={{ backgroundColor: 'transparent', height: '280px' }} />
+                  )}
+                </View>
+              </View>
+            ))}
           </View>
         ) : (
-          <View className="flex flex-col items-center justify-center py-16">
-            <Text className="block text-gray-400 text-sm">暂无产品，请先在后台添加</Text>
+          <View style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '60px', paddingBottom: '60px' }}>
+            <Text style={{ color: '#999', fontSize: '14px' }}>暂无产品，请先在后台添加</Text>
           </View>
         )}
       </View>

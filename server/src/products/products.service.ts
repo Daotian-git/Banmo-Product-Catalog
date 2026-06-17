@@ -56,12 +56,25 @@ export class ProductsService {
       .from('categories')
       .select('*');
     
-    // 组合数据
+    // 组合数据 - 构建完整分类路径
     const categoryMap = new Map(categoriesData?.map(c => [c.id, c]) || []);
-    return productsData?.map(p => ({
-      ...p,
-      category: categoryMap.get(p.category_id) || null
-    })) || [];
+    return productsData?.map(p => {
+      const category = categoryMap.get(p.category_id);
+      let categoryPath = '';
+      if (category) {
+        if (category.parent_id) {
+          const parent = categoryMap.get(category.parent_id);
+          categoryPath = parent ? `${parent.name}-${category.name}` : category.name;
+        } else {
+          categoryPath = category.name;
+        }
+      }
+      return {
+        ...p,
+        category,
+        category_name: categoryPath
+      };
+    }) || [];
   }
 
   // 按分类获取产品
@@ -75,16 +88,34 @@ export class ProductsService {
       .order('sort_order', { ascending: true })
       .order('id', { ascending: true });
     
-    // 获取分类信息
+    // 获取所有分类（用于构建完整路径）
+    const { data: allCategories } = await supabase
+      .from('categories')
+      .select('*');
+    const categoryMap = new Map(allCategories?.map(c => [c.id, c]) || []);
+    
+    // 获取当前分类信息
     const { data: categoryData } = await supabase
       .from('categories')
       .select('*')
       .eq('id', categoryId)
       .single();
     
+    // 构建完整分类路径
+    let categoryPath = '';
+    if (categoryData) {
+      if (categoryData.parent_id) {
+        const parent = categoryMap.get(categoryData.parent_id);
+        categoryPath = parent ? `${parent.name}-${categoryData.name}` : categoryData.name;
+      } else {
+        categoryPath = categoryData.name;
+      }
+    }
+    
     return productsData?.map(p => ({
       ...p,
-      category: categoryData
+      category: categoryData,
+      category_name: categoryPath
     })) || [];
   }
 
