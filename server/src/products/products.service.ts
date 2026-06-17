@@ -4,8 +4,8 @@ import { S3Storage } from 'coze-coding-dev-sdk'
 
 interface CreateProductData {
   name: string
-  category_id: number
-  price: string
+  category_id?: number
+  price?: string
   description?: string
   material?: string
   size?: string
@@ -14,6 +14,8 @@ interface CreateProductData {
   origin?: string
   features?: string[]
   imageFile?: Express.Multer.File
+  imageBuffer?: Buffer  // 批量导入时从ZIP中提取的图片
+  imageName?: string    // 图片文件名（用于生成key）
 }
 
 interface UpdateProductData {
@@ -96,13 +98,15 @@ export class ProductsService {
     let imageKey: string | undefined
     let imageUrl: string | undefined
 
-    // 上传图片到对象存储
-    if (data.imageFile && data.imageFile.buffer) {
-      const fileName = `products/${Date.now()}_${data.imageFile.originalname}`
+    // 上传图片到对象存储（支持 File 或 Buffer）
+    const imageBuffer = data.imageFile?.buffer || data.imageBuffer
+    if (imageBuffer) {
+      const fileName = `products/${Date.now()}_${data.imageFile?.originalname || data.imageName || 'image.jpg'}`
+      const contentType = data.imageFile?.mimetype || 'image/jpeg'
       imageKey = await this.storage.uploadFile({
-        fileContent: data.imageFile.buffer,
+        fileContent: imageBuffer,
         fileName: fileName,
-        contentType: data.imageFile.mimetype
+        contentType: contentType
       })
       imageUrl = await this.storage.generatePresignedUrl({
         key: imageKey,
@@ -116,6 +120,7 @@ export class ProductsService {
       .insert({
         name: data.name,
         category_id: data.category_id,
+        model: data.model,
         price: data.price,
         description: data.description,
         material: data.material,

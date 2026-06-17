@@ -3,8 +3,8 @@ import Taro from '@tarojs/taro'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Network } from '@/network'
 
 // PC端Web管理后台 - 产品图册管理
@@ -12,7 +12,7 @@ const AdminWebPage = () => {
   const [categories, setCategories] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products')
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'batch'>('products')
   
   // 编辑状态
   const [editingProduct, setEditingProduct] = useState<any | null>(null)
@@ -39,6 +39,12 @@ const AdminWebPage = () => {
   })
   const [selectedImage, setSelectedImage] = useState('')
   const [uploading, setUploading] = useState(false)
+  
+  // 批量导入
+  const [excelFile, setExcelFile] = useState('')
+  const [zipFile, setZipFile] = useState('')
+  const [batchUploading, setBatchUploading] = useState(false)
+  const [importResult, setImportResult] = useState<string>('')
   
   // 新增分类表单
   const [newCategory, setNewCategory] = useState({ name: '' })
@@ -305,6 +311,125 @@ const AdminWebPage = () => {
     }
   }
 
+  // 选择Excel文件
+  const handleChooseExcel = async () => {
+    try {
+      // H5端使用 chooseMessageFile 选择文件
+      if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
+        const res = await Taro.chooseMessageFile({
+          count: 1,
+          type: 'file',
+          extension: ['xlsx', 'xls', 'csv']
+        })
+        setExcelFile(res.tempFiles[0].path)
+      } else {
+        Taro.showToast({ title: '请在H5端操作', icon: 'none' })
+      }
+    } catch (e) {
+      console.error('选择Excel失败:', e)
+      Taro.showToast({ title: '选择文件失败', icon: 'none' })
+    }
+  }
+
+  // 选择ZIP文件
+  const handleChooseZip = async () => {
+    try {
+      if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
+        const res = await Taro.chooseMessageFile({
+          count: 1,
+          type: 'file',
+          extension: ['zip']
+        })
+        setZipFile(res.tempFiles[0].path)
+      } else {
+        Taro.showToast({ title: '请在H5端操作', icon: 'none' })
+      }
+    } catch (e) {
+      console.error('选择ZIP失败:', e)
+      Taro.showToast({ title: '选择文件失败', icon: 'none' })
+    }
+  }
+
+  // 执行批量导入
+  const handleBatchImport = async () => {
+    if (!excelFile) {
+      Taro.showToast({ title: '请选择Excel文件', icon: 'none' })
+      return
+    }
+    
+    setBatchUploading(true)
+    setImportResult('')
+    
+    try {
+      // 上传Excel文件
+      const excelUploadRes = await Network.uploadFile({
+        url: '/api/products/batch-upload',
+        filePath: excelFile,
+        name: 'excel',
+        formData: {}
+      })
+      
+      const excelResponse = typeof excelUploadRes.data === 'string' 
+        ? JSON.parse(excelUploadRes.data) 
+        : excelUploadRes.data
+      
+      if (excelResponse?.code !== 200) {
+        Taro.showToast({ title: excelResponse?.msg || 'Excel上传失败', icon: 'none' })
+        setBatchUploading(false)
+        return
+      }
+      
+      const excelKey = excelResponse.data?.excelKey
+      
+      // 上传ZIP文件（如果有）
+      let zipKey = ''
+      if (zipFile) {
+        const zipUploadRes = await Network.uploadFile({
+          url: '/api/products/batch-upload',
+          filePath: zipFile,
+          name: 'zip',
+          formData: {}
+        })
+        
+        const zipResponse = typeof zipUploadRes.data === 'string' 
+          ? JSON.parse(zipUploadRes.data) 
+          : zipUploadRes.data
+        
+        if (zipResponse?.code === 200) {
+          zipKey = zipResponse.data?.zipKey || ''
+        }
+      }
+      
+      // 执行批量导入
+      const importRes = await Network.request({
+        url: '/api/products/batch-import',
+        method: 'POST',
+        data: {
+          excelKey,
+          zipKey
+        }
+      })
+      
+      console.log('导入结果:', importRes.data)
+      
+      if (importRes.data?.code === 200) {
+        const result = importRes.data.data
+        setImportResult(`导入成功！共处理 ${result.total} 条，成功 ${result.success} 条，失败 ${result.failed} 条`)
+        Taro.showToast({ title: '导入成功', icon: 'success' })
+        loadData()
+      } else {
+        setImportResult(`导入失败: ${importRes.data?.msg || '未知错误'}`)
+        Taro.showToast({ title: importRes.data?.msg || '导入失败', icon: 'none' })
+      }
+    } catch (e) {
+      console.error('批量导入失败:', e)
+      setImportResult(`导入失败: ${e}`)
+      Taro.showToast({ title: '导入失败', icon: 'none' })
+    }
+    
+    setBatchUploading(false)
+  }
+
   // 渲染产品表单（新增或编辑共用）
   const renderProductForm = (isEdit: boolean) => {
     const formData = isEdit ? editFormData : newProduct
@@ -490,6 +615,13 @@ const AdminWebPage = () => {
           <Text>产品管理</Text>
         </Button>
         <Button 
+          variant={activeTab === 'batch' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => { setActiveTab('batch'); cancelEdit() }}
+        >
+          <Text>批量导入</Text>
+        </Button>
+        <Button 
           variant={activeTab === 'categories' ? 'default' : 'outline'}
           size="sm"
           onClick={() => { setActiveTab('categories'); cancelEdit() }}
@@ -502,7 +634,73 @@ const AdminWebPage = () => {
       <View className="flex flex-row gap-4" style={{ minHeight: '400px' }}>
         {/* 左侧：表单 */}
         <View className="flex-1">
-          {activeTab === 'products' ? (
+          {activeTab === 'batch' ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  <Text className="text-lg font-semibold">批量导入产品</Text>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 使用说明 */}
+                <View className="bg-amber-50 rounded-lg p-4">
+                  <Text className="block text-sm font-semibold text-amber-800 mb-2">使用说明：</Text>
+                  <Text className="block text-xs text-gray-600">1. 准备Excel文件（xlsx格式），包含产品信息</Text>
+                  <Text className="block text-xs text-gray-600">2. Excel列名：名称、型号、分类ID、材质、尺寸、工艺、产地、图片文件名</Text>
+                  <Text className="block text-xs text-gray-600">3. 图片打包成ZIP文件，文件名与Excel中的图片文件名对应</Text>
+                  <Text className="block text-xs text-gray-600">4. 分类ID可在右侧分类列表查看</Text>
+                </View>
+                
+                {/* Excel文件选择 */}
+                <View className="space-y-2">
+                  <Text className="block text-sm font-medium">Excel文件：</Text>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleChooseExcel}
+                    className="w-full"
+                  >
+                    <Text>{excelFile ? '已选择Excel文件' : '选择Excel文件（xlsx）'}</Text>
+                  </Button>
+                  {excelFile && (
+                    <Text className="block text-xs text-gray-500">{excelFile.split('/').pop()}</Text>
+                  )}
+                </View>
+                
+                {/* ZIP文件选择 */}
+                <View className="space-y-2">
+                  <Text className="block text-sm font-medium">图片ZIP包（可选）：</Text>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleChooseZip}
+                    className="w-full"
+                  >
+                    <Text>{zipFile ? '已选择ZIP文件' : '选择图片ZIP包'}</Text>
+                  </Button>
+                  {zipFile && (
+                    <Text className="block text-xs text-gray-500">{zipFile.split('/').pop()}</Text>
+                  )}
+                </View>
+                
+                {/* 导入按钮 */}
+                <Button 
+                  className="w-full bg-amber-800"
+                  onClick={handleBatchImport}
+                  disabled={batchUploading || !excelFile}
+                >
+                  <Text className="text-white">
+                    {batchUploading ? '导入中...' : '开始批量导入'}
+                  </Text>
+                </Button>
+                
+                {/* 导入结果 */}
+                {importResult && (
+                  <View className="bg-gray-50 rounded-lg p-3">
+                    <Text className="block text-sm">{importResult}</Text>
+                  </View>
+                )}
+              </CardContent>
+            </Card>
+          ) : activeTab === 'products' ? (
             <Card>
               <CardHeader>
                 <CardTitle>
