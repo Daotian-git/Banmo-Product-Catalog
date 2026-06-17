@@ -13,11 +13,15 @@ interface Category {
 interface Product {
   id: number
   name: string
-  categoryId: number
-  categoryName?: string
-  image: string
-  description: string
+  model?: string
+  category_id: number
+  categories?: {
+    name: string
+  }
+  image_url: string
   material?: string
+  size?: string
+  process?: string
   origin?: string
 }
 
@@ -36,7 +40,7 @@ const CategoryPage = () => {
     if (selectedCategoryId === null) {
       setFilteredProducts(products)
     } else {
-      setFilteredProducts(products.filter(p => p.categoryId === selectedCategoryId))
+      setFilteredProducts(products.filter(p => p.category_id === selectedCategoryId))
     }
   }, [selectedCategoryId, products])
 
@@ -63,10 +67,6 @@ const CategoryPage = () => {
     }
   }
 
-  const goToDetail = (id: number) => {
-    Taro.navigateTo({ url: `/pages/detail/index?id=${id}` })
-  }
-
   if (loading) {
     return (
       <View className="min-h-full bg-gray-50 flex flex-col items-center justify-center">
@@ -90,31 +90,57 @@ const CategoryPage = () => {
           filteredProducts.map(product => (
             <Card
               key={product.id}
-              className="w-full bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm mb-4 cursor-pointer"
-              onClick={() => goToDetail(product.id)}
+              className="w-full bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm mb-4"
             >
               {/* 图册风格：大图展示 */}
               <View className="relative">
-                <Image
-                  className="w-full h-64"
-                  src={product.image}
-                  mode="aspectFill"
-                />
+                {product.image_url ? (
+                  <Image
+                    className="w-full h-64"
+                    src={product.image_url}
+                    mode="aspectFill"
+                  />
+                ) : (
+                  <View className="w-full h-64 bg-gray-200 flex items-center justify-center">
+                    <Text className="block text-gray-400 text-sm">暂无图片</Text>
+                  </View>
+                )}
               </View>
+              
+              {/* 产品参数 - 直接展示在图片下面 */}
               <CardContent className="p-4">
-                <Text className="block text-lg font-semibold text-gray-800">{product.name}</Text>
-                {/* 材质和产地 */}
-                <View className="flex flex-row gap-4 mt-3">
+                {/* 名称和型号 */}
+                <View className="flex flex-row items-center gap-2">
+                  <Text className="block text-lg font-semibold text-gray-800">{product.name}</Text>
+                  {product.model && (
+                    <Text className="block text-sm text-gray-500">({product.model})</Text>
+                  )}
+                </View>
+                
+                {/* 参数网格 */}
+                <View className="mt-3 grid grid-cols-2 gap-2">
                   {product.material && (
-                    <View className="flex flex-row items-center">
+                    <View className="flex flex-row items-center gap-1">
                       <Text className="block text-xs text-gray-400">材质：</Text>
-                      <Text className="block text-xs text-amber-800">{product.material}</Text>
+                      <Text className="block text-xs text-gray-600">{product.material}</Text>
+                    </View>
+                  )}
+                  {product.size && (
+                    <View className="flex flex-row items-center gap-1">
+                      <Text className="block text-xs text-gray-400">尺寸：</Text>
+                      <Text className="block text-xs text-gray-600">{product.size}</Text>
+                    </View>
+                  )}
+                  {product.process && (
+                    <View className="flex flex-row items-center gap-1">
+                      <Text className="block text-xs text-gray-400">工艺：</Text>
+                      <Text className="block text-xs text-gray-600">{product.process}</Text>
                     </View>
                   )}
                   {product.origin && (
-                    <View className="flex flex-row items-center">
+                    <View className="flex flex-row items-center gap-1">
                       <Text className="block text-xs text-gray-400">产地：</Text>
-                      <Text className="block text-xs text-amber-800">{product.origin}</Text>
+                      <Text className="block text-xs text-gray-600">{product.origin}</Text>
                     </View>
                   )}
                 </View>

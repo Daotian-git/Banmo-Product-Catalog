@@ -1,5 +1,4 @@
 import { View, Text, Image } from '@tarojs/components'
-import Taro from '@tarojs/taro'
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,12 +7,14 @@ import { Network } from '@/network'
 interface Product {
   id: number
   name: string
+  model?: string
   categories?: {
     name: string
   }
   image_url: string
-  description: string
   material?: string
+  size?: string
+  process?: string
   origin?: string
 }
 
@@ -37,10 +38,6 @@ const IndexPage = () => {
     } finally {
       setLoading(false)
     }
-  }
-
-  const goToDetail = (id: number) => {
-    Taro.navigateTo({ url: `/pages/detail/index?id=${id}` })
   }
 
   if (loading) {
@@ -67,7 +64,6 @@ const IndexPage = () => {
               <Card
                 key={product.id}
                 className="bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm"
-                onClick={() => goToDetail(product.id)}
               >
                 {/* 图册风格：大图展示 */}
                 <View className="relative">
@@ -89,15 +85,35 @@ const IndexPage = () => {
                     </Badge>
                   )}
                 </View>
-                {/* 产品信息 */}
+                
+                {/* 产品参数 - 直接展示在图片下面 */}
                 <CardContent className="p-4">
-                  <Text className="block text-lg font-medium text-gray-800">{product.name}</Text>
-                  {/* 材质产地 */}
-                  <View className="flex flex-row gap-4 mt-3">
+                  {/* 名称和型号 */}
+                  <View className="flex flex-row items-center gap-2">
+                    <Text className="block text-lg font-medium text-gray-800">{product.name}</Text>
+                    {product.model && (
+                      <Text className="block text-sm text-gray-500">({product.model})</Text>
+                    )}
+                  </View>
+                  
+                  {/* 参数网格 */}
+                  <View className="mt-3 grid grid-cols-2 gap-2">
                     {product.material && (
                       <View className="flex flex-row items-center gap-1">
                         <Text className="block text-xs text-gray-400">材质：</Text>
                         <Text className="block text-xs text-gray-600">{product.material}</Text>
+                      </View>
+                    )}
+                    {product.size && (
+                      <View className="flex flex-row items-center gap-1">
+                        <Text className="block text-xs text-gray-400">尺寸：</Text>
+                        <Text className="block text-xs text-gray-600">{product.size}</Text>
+                      </View>
+                    )}
+                    {product.process && (
+                      <View className="flex flex-row items-center gap-1">
+                        <Text className="block text-xs text-gray-400">工艺：</Text>
+                        <Text className="block text-xs text-gray-600">{product.process}</Text>
                       </View>
                     )}
                     {product.origin && (
