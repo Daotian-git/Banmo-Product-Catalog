@@ -352,7 +352,7 @@ export default function AdminWebPage() {
   const isEdit = Boolean(editingProduct)
 
   return (
-    <View className="min-h-screen bg-gray-100" style={{ padding: '24px' }}>
+    <View className="admin-full-width admin-web-page min-h-screen bg-gray-100" style={{ padding: '24px', minWidth: '1200px' }}>
       {/* 标题 */}
       <View style={{ marginBottom: '24px' }}>
         <Text className="block text-3xl font-bold text-gray-800">产品图册管理后台</Text>

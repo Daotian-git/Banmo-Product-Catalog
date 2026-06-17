@@ -154,3 +154,18 @@ image {
   background-color: var(--selection);
   color: var(--selection-foreground);
 }
+
+/* 管理后台页面全屏样式 */
+page.admin-web-page,
+.admin-web-page,
+.taro_page.admin-web-page {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* 管理后台内容区域全屏 */
+.admin-full-width {
+  max-width: none !important;
+  width: 100vw !important;
+  min-width: 1200px !important;
+}
