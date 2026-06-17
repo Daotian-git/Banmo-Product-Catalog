@@ -163,9 +163,31 @@ page.admin-web-page,
   width: 100% !important;
 }
 
+/* 管理后台页面 - 强制宽屏 */
+#app .taro_router .taro_page.admin-web-page,
+.taro-router .taro-page.admin-web-page,
+[class*="admin-web"] {
+  max-width: none !important;
+  width: 100% !important;
+  min-width: 1200px !important;
+}
+
 /* 管理后台内容区域全屏 */
 .admin-full-width {
   max-width: none !important;
   width: 100vw !important;
   min-width: 1200px !important;
+}
+
+/* 全局覆盖 - 针对管理后台页面路径 */
+body[data-page*="admin-web"],
+html[data-page*="admin-web"] {
+  max-width: none !important;
+}
+
+/* Taro H5 页面容器覆盖 */
+.taro_page,
+taro-page,
+.taro-router > .taro-page {
+  max-width: none !important;
 }

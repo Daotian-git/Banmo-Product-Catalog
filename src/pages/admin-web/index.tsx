@@ -62,6 +62,42 @@ export default function AdminWebPage() {
   const excelInputRef = useRef<HTMLInputElement>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
 
+  // 强制宽屏布局（H5端）
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      // 设置页面容器宽度
+      const setPageWidth = () => {
+        const taroPageEl = document.querySelector('.taro_page') || 
+                           document.querySelector('taro-page') ||
+                           document.querySelector('[class*="taro-page"]')
+        if (taroPageEl) {
+          const el = taroPageEl as HTMLElement
+          el.style.setProperty('max-width', 'none')
+          el.style.setProperty('width', '100%')
+          el.style.setProperty('min-width', '1200px')
+        }
+        // 设置根容器
+        const appRootEl = document.querySelector('#app')
+        if (appRootEl) {
+          const el = appRootEl as HTMLElement
+          el.style.setProperty('max-width', 'none')
+          el.style.setProperty('width', '100%')
+        }
+        // 设置 router 容器
+        const routerEl = document.querySelector('.taro_router') || document.querySelector('.taro-router')
+        if (routerEl) {
+          const el = routerEl as HTMLElement
+          el.style.setProperty('max-width', 'none')
+          el.style.setProperty('width', '100%')
+        }
+      }
+      setPageWidth()
+      // 延迟再次设置（确保 DOM 渲染完成）
+      setTimeout(setPageWidth, 100)
+      setTimeout(setPageWidth, 500)
+    }
+  }, [])
+
   // 加载数据
   useEffect(() => {
     loadCategories()
