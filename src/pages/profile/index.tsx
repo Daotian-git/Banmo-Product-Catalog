@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 
 const ProfilePage = () => {
+  // H5端显示管理入口
+  const isH5 = Taro.getEnv() === Taro.ENV_TYPE.WEB
+
   const handleCall = () => {
     Taro.showModal({
       title: '联系客服',
@@ -82,6 +85,24 @@ const ProfilePage = () => {
           </View>
         </CardContent>
       </Card>
+
+      {/* H5端专属：管理后台入口 */}
+      {isH5 && (
+        <Card className="mt-3 mx-4 bg-amber-50 rounded-lg border border-amber-200">
+          <CardContent className="p-4">
+            <View
+              className="flex flex-row items-center justify-between cursor-pointer"
+              onClick={() => Taro.navigateTo({ url: '/pages/admin-web/index' })}
+            >
+              <View>
+                <Text className="block text-sm font-medium text-amber-900">产品管理后台</Text>
+                <Text className="block text-xs text-amber-600 mt-1">管理分类和产品信息</Text>
+              </View>
+              <Badge className="bg-amber-800 text-white px-3 py-1 rounded text-xs">进入</Badge>
+            </View>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 底部信息 */}
       <View className="mt-6 px-4">
