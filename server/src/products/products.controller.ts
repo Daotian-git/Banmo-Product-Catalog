@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UploadedFile, UseInterceptors, UploadedFiles } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UploadedFile, UseInterceptors, UploadedFiles, UploadedFile as UploadedFileField } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ProductsService } from './products.service';
 import * as xlsx from 'xlsx';
@@ -119,6 +119,99 @@ export class ProductsController {
     }
     
     return { code: 200, msg: 'success', data: result };
+  }
+
+  // 直接批量导入（前端使用 FormData，字段名为 excel 和 zip）
+  @Post('batch-import-direct')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'excel', maxCount: 1 },
+    { name: 'zip', maxCount: 1 }
+  ]))
+  async batchImportDirect(
+    @UploadedFiles() files: { excel?: Express.Multer.File[]; zip?: Express.Multer.File[] }
+  ) {
+    const excelFile = files?.excel?.[0];
+    const zipFile = files?.zip?.[0];
+    
+    let excelBuffer: Buffer | null = excelFile?.buffer || null;
+    let zipBuffer: Buffer | null = zipFile?.buffer || null;
+
+    console.log('接收到的文件:', {
+      excel: excelFile ? { name: excelFile.originalname, size: excelFile.size } : null,
+      zip: zipFile ? { name: zipFile.originalname, size: zipFile.size } : null
+    });
+
+    if (!excelBuffer) {
+      return { code: 400, msg: '请上传Excel文件', data: null };
+    }
+
+    // 解析Excel
+    const workbook = xlsx.read(excelBuffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, string>[];
+
+    console.log('Excel解析结果:', rows.length, '行数据');
+    if (rows.length > 0) {
+      console.log('第一行数据示例:', rows[0]);
+    }
+
+    // 解压ZIP获取图片
+    const images: Map<string, Buffer> = new Map();
+    if (zipBuffer) {
+      const zip = new AdmZip(zipBuffer);
+      const zipEntries = zip.getEntries();
+      console.log('ZIP包含文件数:', zipEntries.length);
+      for (const entry of zipEntries) {
+        if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
+          const filename = entry.entryName.split('/').pop() || entry.entryName;
+          images.set(filename, entry.getData());
+          console.log('发现图片:', filename);
+        }
+      }
+    }
+
+    // 批量创建产品
+    const created: any[] = [];
+    const failed: any[] = [];
+
+    for (const row of rows) {
+      try {
+        // 解析型号和尺寸（支持多个，用分号分隔）
+        const modelsData = this.parseModels(row);
+        
+        // 获取图片
+        const imageFilename = row['图片文件名'] || row['image'] || '';
+        const imageBuffer = images.get(imageFilename) || null;
+
+        const product = await this.productsService.create({
+          name: row['名称'] || row['name'] || '',
+          category_id: Number(row['分类ID'] || row['category_id']) || 1,
+          models: modelsData,
+          layout: Number(row['排列方式'] || row['layout']) || 1,
+          imageBuffer: imageBuffer || undefined,
+          imageFilename: imageFilename
+        });
+        created.push(product);
+      } catch (error) {
+        failed.push({ row, error: error.message });
+      }
+    }
+
+    console.log('导入结果: 成功', created.length, '失败', failed.length);
+
+    return { 
+      code: 200, 
+      msg: 'success', 
+      data: { 
+        count: created.length,
+        total: rows.length, 
+        created: created.length, 
+        failed: failed.length,
+        details: { created, failed }
+      }
+    };
   }
 
   // 执行批量导入

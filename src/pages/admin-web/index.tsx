@@ -1,7 +1,7 @@
 import { View, Text, Image } from '@tarojs/components'
 import { Input } from '@/components/ui/input'
 import Taro from '@tarojs/taro'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Network } from '@/network'
 
 import { Button } from '@/components/ui/button'
@@ -52,11 +52,15 @@ export default function AdminWebPage() {
   const [newCategoryParent, setNewCategoryParent] = useState('')
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   
-  // 批量导入
-  const [excelFile, setExcelFile] = useState('')
-  const [zipFile, setZipFile] = useState('')
+  // 批量导入 - 使用 File 对象而不是路径
+  const [excelFileObj, setExcelFileObj] = useState<File | null>(null)
+  const [zipFileObj, setZipFileObj] = useState<File | null>(null)
   const [batchUploading, setBatchUploading] = useState(false)
   const [importResult, setImportResult] = useState('')
+  
+  // H5 文件输入引用
+  const excelInputRef = useRef<HTMLInputElement>(null)
+  const zipInputRef = useRef<HTMLInputElement>(null)
 
   // 加载数据
   useEffect(() => {
@@ -396,37 +400,9 @@ export default function AdminWebPage() {
 
   // ===== 批量导入 =====
 
-  // 选择 Excel 文件
-  const chooseExcelFile = async () => {
-    try {
-      const res = await Taro.chooseMessageFile({
-        count: 1,
-        type: 'file',
-        extension: ['xlsx', 'xls', 'csv']
-      })
-      setExcelFile(res.tempFiles[0].path)
-    } catch (error) {
-      console.error('选择文件失败:', error)
-    }
-  }
-
-  // 选择 ZIP 文件
-  const chooseZipFile = async () => {
-    try {
-      const res = await Taro.chooseMessageFile({
-        count: 1,
-        type: 'file',
-        extension: ['zip']
-      })
-      setZipFile(res.tempFiles[0].path)
-    } catch (error) {
-      console.error('选择ZIP失败:', error)
-    }
-  }
-
-  // 执行批量导入
+  // 执行批量导入（H5端使用原生FormData上传）
   const handleBatchImport = async () => {
-    if (!excelFile) {
+    if (!excelFileObj) {
       Taro.showToast({ title: '请选择Excel文件', icon: 'none' })
       return
     }
@@ -435,49 +411,32 @@ export default function AdminWebPage() {
     setImportResult('')
 
     try {
-      // 先上传文件
-      const uploadFormData: Record<string, string> = {}
-      
-      const excelRes = await Network.uploadFile({
-        url: '/api/products/batch-upload',
-        filePath: excelFile,
-        name: 'excel',
-        formData: uploadFormData
-      })
-
-      let excelKey = ''
-      if (excelRes.statusCode === 200) {
-        const excelData = typeof excelRes.data === 'string' ? JSON.parse(excelRes.data) : excelRes.data
-        excelKey = excelData.data?.excelKey || ''
+      // 创建 FormData 并上传所有文件
+      const uploadFormData = new FormData()
+      uploadFormData.append('excel', excelFileObj)
+      if (zipFileObj) {
+        uploadFormData.append('zip', zipFileObj)
       }
 
-      // 上传 ZIP
-      let zipKey = ''
-      if (zipFile) {
-        const zipRes = await Network.uploadFile({
-          url: '/api/products/batch-upload',
-          filePath: zipFile,
-          name: 'zip',
-          formData: {}
-        })
-        if (zipRes.statusCode === 200) {
-          const zipData = typeof zipRes.data === 'string' ? JSON.parse(zipRes.data) : zipRes.data
-          zipKey = zipData.data?.zipKey || ''
-        }
-      }
+      console.log('开始批量导入，Excel:', excelFileObj.name, 'ZIP:', zipFileObj?.name || '无')
 
-      // 执行导入
-      const importRes = await Network.request({
-        url: '/api/products/batch-import',
+      // 使用原生 fetch 上传（H5端）
+      const response = await fetch('/api/products/batch-import-direct', {
         method: 'POST',
-        data: { excelKey, zipKey }
+        body: uploadFormData
+        // 不设置 Content-Type，让浏览器自动处理 multipart/form-data
       })
 
-      if (importRes.statusCode === 200) {
-        const result = importRes.data?.data || importRes.data
-        setImportResult(`导入成功！共导入 ${result.count || 0} 个产品`)
+      console.log('批量导入响应状态:', response.status)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('批量导入结果:', result)
+        setImportResult(`导入成功！共导入 ${result.data?.count || 0} 个产品`)
         loadProducts()
       } else {
+        const errorText = await response.text()
+        console.error('导入失败:', errorText)
         setImportResult('导入失败，请检查文件格式')
       }
     } catch (error) {
@@ -826,9 +785,22 @@ export default function AdminWebPage() {
               <View style={{ marginBottom: '16px' }}>
                 <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Excel 文件 *</Text>
                 <View style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Button onClick={chooseExcelFile}>选择文件</Button>
+                  {/* 隐藏的 input 元素 */}
+                  <input
+                    ref={excelInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setExcelFileObj(file)
+                      }
+                    }}
+                  />
+                  <Button onClick={() => excelInputRef.current?.click()}>选择文件</Button>
                   <Text className="block" style={{ fontSize: '14px', color: '#666' }}>
-                    {excelFile ? '已选择' : '未选择'}
+                    {excelFileObj ? excelFileObj.name : '未选择'}
                   </Text>
                 </View>
               </View>
@@ -837,9 +809,22 @@ export default function AdminWebPage() {
               <View style={{ marginBottom: '16px' }}>
                 <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>图片 ZIP 包（可选）</Text>
                 <View style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Button onClick={chooseZipFile}>选择 ZIP</Button>
+                  {/* 隐藏的 input 元素 */}
+                  <input
+                    ref={zipInputRef}
+                    type="file"
+                    accept=".zip"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setZipFileObj(file)
+                      }
+                    }}
+                  />
+                  <Button onClick={() => zipInputRef.current?.click()}>选择 ZIP</Button>
                   <Text className="block" style={{ fontSize: '14px', color: '#666' }}>
-                    {zipFile ? '已选择' : '未选择'}
+                    {zipFileObj ? zipFileObj.name : '未选择'}
                   </Text>
                 </View>
               </View>
@@ -848,7 +833,7 @@ export default function AdminWebPage() {
               <Button 
                 style={{ marginTop: '24px' }}
                 onClick={handleBatchImport}
-                disabled={batchUploading}
+                disabled={batchUploading || !excelFileObj}
               >
                 {batchUploading ? '导入中...' : '开始批量导入'}
               </Button>
