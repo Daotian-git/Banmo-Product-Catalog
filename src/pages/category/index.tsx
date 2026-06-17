@@ -103,7 +103,6 @@ const CategoryPage = () => {
               </View>
               <CardContent className="p-4">
                 <Text className="block text-lg font-semibold text-gray-800">{product.name}</Text>
-                <Text className="block text-sm text-gray-500 mt-2 line-clamp-2">{product.description}</Text>
                 {/* 材质和产地 */}
                 <View className="flex flex-row gap-4 mt-3">
                   {product.material && (

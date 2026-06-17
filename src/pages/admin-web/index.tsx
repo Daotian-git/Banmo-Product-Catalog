@@ -18,19 +18,17 @@ const AdminWebPage = () => {
   const [newProduct, setNewProduct] = useState({
     name: '',
     categoryId: '',
-    description: '',
+    model: '',
     material: '',
     size: '',
-    weight: '',
     process: '',
-    origin: '',
-    features: ''
+    origin: ''
   })
   const [selectedImage, setSelectedImage] = useState('')
   const [uploading, setUploading] = useState(false)
   
   // 新增分类表单
-  const [newCategory, setNewCategory] = useState({ name: '', description: '' })
+  const [newCategory, setNewCategory] = useState({ name: '' })
 
   useEffect(() => {
     loadData()
@@ -90,13 +88,11 @@ const AdminWebPage = () => {
         formData: {
           name: newProduct.name,
           category_id: newProduct.categoryId,
-          description: newProduct.description,
+          model: newProduct.model,
           material: newProduct.material,
           size: newProduct.size,
-          weight: newProduct.weight,
           process: newProduct.process,
-          origin: newProduct.origin,
-          features: JSON.stringify(newProduct.features.split(',').map(f => f.trim()).filter(Boolean))
+          origin: newProduct.origin
         }
       })
       
@@ -106,8 +102,8 @@ const AdminWebPage = () => {
       if (response?.code === 200) {
         Taro.showToast({ title: '添加成功', icon: 'success' })
         setNewProduct({
-          name: '', categoryId: '', description: '', material: '',
-          size: '', weight: '', process: '', origin: '', features: ''
+          name: '', categoryId: '', model: '', material: '',
+          size: '', process: '', origin: ''
         })
         setSelectedImage('')
         loadData()
@@ -138,7 +134,7 @@ const AdminWebPage = () => {
       
       if (res.data?.code === 200) {
         Taro.showToast({ title: '添加成功', icon: 'success' })
-        setNewCategory({ name: '', description: '' })
+        setNewCategory({ name: '' })
         loadData()
       } else {
         Taro.showToast({ title: res.data?.msg || '添加失败', icon: 'none' })
@@ -246,15 +242,28 @@ const AdminWebPage = () => {
                 {/* 分类选择 */}
                 <View>
                   <Text className="block text-sm text-gray-600 mb-2">所属分类 *</Text>
-                  <View className="bg-gray-50 rounded px-3 py-2">
-                    <Input 
-                      className="w-full bg-transparent"
-                      placeholder="请输入分类ID（查看右侧列表）"
-                      value={newProduct.categoryId}
-                      onInput={(e) => setNewProduct({ ...newProduct, categoryId: e.detail.value })}
-                    />
+                  <View 
+                    className="bg-gray-50 rounded px-3 py-2 flex flex-row justify-between items-center"
+                    onClick={() => {
+                      if (categories.length === 0) {
+                        Taro.showToast({ title: '请先添加分类', icon: 'none' })
+                        return
+                      }
+                      Taro.showActionSheet({
+                        itemList: categories.map(cat => cat.name),
+                        success: (res) => {
+                          setNewProduct({ ...newProduct, categoryId: String(categories[res.tapIndex].id) })
+                        }
+                      })
+                    }}
+                  >
+                    <Text className="block text-sm">
+                      {newProduct.categoryId 
+                        ? categories.find(c => String(c.id) === newProduct.categoryId)?.name || '请选择分类'
+                        : '请选择分类'}
+                    </Text>
+                    <Text className="block text-gray-400">▼</Text>
                   </View>
-                  <Text className="block text-xs text-gray-400 mt-1">分类ID可在右侧分类列表中查看</Text>
                 </View>
 
                 {/* 产品名称 */}
@@ -262,23 +271,23 @@ const AdminWebPage = () => {
                   <Text className="block text-sm text-gray-600 mb-2">产品名称 *</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
+                      className="w-full bg-transparent text-sm"
                       placeholder="如：明式圈椅"
                       value={newProduct.name}
-                      onInput={(e) => setNewProduct({ ...newProduct, name: e.detail.value })}
+                      onInput={(e: any) => setNewProduct({ ...newProduct, name: e.detail.value })}
                     />
                   </View>
                 </View>
 
-                {/* 产品描述 */}
+                {/* 产品型号 */}
                 <View>
-                  <Text className="block text-sm text-gray-600 mb-2">产品描述</Text>
+                  <Text className="block text-sm text-gray-600 mb-2">产品型号</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
-                      placeholder="简短描述产品特点"
-                      value={newProduct.description}
-                      onInput={(e) => setNewProduct({ ...newProduct, description: e.detail.value })}
+                      className="w-full bg-transparent text-sm"
+                      placeholder="如：MXQY-001"
+                      value={newProduct.model}
+                      onInput={(e: any) => setNewProduct({ ...newProduct, model: e.detail.value })}
                     />
                   </View>
                 </View>
@@ -288,10 +297,10 @@ const AdminWebPage = () => {
                   <Text className="block text-sm text-gray-600 mb-2">材质</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
-                      placeholder="如：非洲檀木"
+                      className="w-full bg-transparent text-sm"
+                      placeholder="如：北美黑胡桃木"
                       value={newProduct.material}
-                      onInput={(e) => setNewProduct({ ...newProduct, material: e.detail.value })}
+                      onInput={(e: any) => setNewProduct({ ...newProduct, material: e.detail.value })}
                     />
                   </View>
                 </View>
@@ -301,23 +310,10 @@ const AdminWebPage = () => {
                   <Text className="block text-sm text-gray-600 mb-2">尺寸</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
-                      placeholder="如：62×48×95cm"
+                      className="w-full bg-transparent text-sm"
+                      placeholder="如：120×60×45cm"
                       value={newProduct.size}
-                      onInput={(e) => setNewProduct({ ...newProduct, size: e.detail.value })}
-                    />
-                  </View>
-                </View>
-
-                {/* 重量 */}
-                <View>
-                  <Text className="block text-sm text-gray-600 mb-2">重量</Text>
-                  <View className="bg-gray-50 rounded px-3 py-2">
-                    <Input 
-                      className="w-full bg-transparent"
-                      placeholder="如：18kg"
-                      value={newProduct.weight}
-                      onInput={(e) => setNewProduct({ ...newProduct, weight: e.detail.value })}
+                      onInput={(e: any) => setNewProduct({ ...newProduct, size: e.detail.value })}
                     />
                   </View>
                 </View>
@@ -327,10 +323,10 @@ const AdminWebPage = () => {
                   <Text className="block text-sm text-gray-600 mb-2">工艺</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
-                      placeholder="如：榫卯结构，手工雕刻"
+                      className="w-full bg-transparent text-sm"
+                      placeholder="如：榫卯结构，手工打磨"
                       value={newProduct.process}
-                      onInput={(e) => setNewProduct({ ...newProduct, process: e.detail.value })}
+                      onInput={(e: any) => setNewProduct({ ...newProduct, process: e.detail.value })}
                     />
                   </View>
                 </View>
@@ -340,17 +336,17 @@ const AdminWebPage = () => {
                   <Text className="block text-sm text-gray-600 mb-2">产地</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
-                      placeholder="如：福建仙游"
+                      className="w-full bg-transparent text-sm"
+                      placeholder="如：浙江东阳"
                       value={newProduct.origin}
-                      onInput={(e) => setNewProduct({ ...newProduct, origin: e.detail.value })}
+                      onInput={(e: any) => setNewProduct({ ...newProduct, origin: e.detail.value })}
                     />
                   </View>
                 </View>
 
                 {/* 提交按钮 */}
                 <Button 
-                  className="w-full mt-4" 
+                  className="w-full bg-amber-800 text-white"
                   onClick={handleAddProduct}
                   disabled={uploading}
                 >
@@ -370,26 +366,18 @@ const AdminWebPage = () => {
                   <Text className="block text-sm text-gray-600 mb-2">分类名称 *</Text>
                   <View className="bg-gray-50 rounded px-3 py-2">
                     <Input 
-                      className="w-full bg-transparent"
+                      className="w-full bg-transparent text-sm"
                       placeholder="如：座椅系列"
                       value={newCategory.name}
-                      onInput={(e) => setNewCategory({ ...newCategory, name: e.detail.value })}
+                      onInput={(e: any) => setNewCategory({ name: e.detail.value })}
                     />
                   </View>
                 </View>
-                <View>
-                  <Text className="block text-sm text-gray-600 mb-2">分类描述</Text>
-                  <View className="bg-gray-50 rounded px-3 py-2">
-                    <Input 
-                      className="w-full bg-transparent"
-                      placeholder="简短描述该分类"
-                      value={newCategory.description}
-                      onInput={(e) => setNewCategory({ ...newCategory, description: e.detail.value })}
-                    />
-                  </View>
-                </View>
-                <Button className="w-full mt-4" onClick={handleAddCategory}>
-                  <Text>添加分类</Text>
+                <Button 
+                  className="w-full bg-amber-800 text-white"
+                  onClick={handleAddCategory}
+                >
+                  <Text>提交分类</Text>
                 </Button>
               </CardContent>
             </Card>
@@ -398,79 +386,81 @@ const AdminWebPage = () => {
 
         {/* 右侧：列表 */}
         <View className="flex-1">
-          {activeTab === 'products' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Text className="text-lg font-semibold">产品列表 ({products.length})</Text>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Text className="block text-gray-500 text-center py-8">加载中...</Text>
-                ) : products.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Text className="text-lg font-semibold">
+                  {activeTab === 'products' ? '产品列表' : '分类列表'}
+                </Text>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Text className="block text-gray-400 text-sm">加载中...</Text>
+              ) : activeTab === 'products' ? (
+                products.length > 0 ? (
                   <View className="space-y-2">
                     {products.map(product => (
-                      <View key={product.id} className="flex flex-row items-center justify-between p-3 bg-gray-50 rounded">
+                      <View 
+                        key={product.id}
+                        className="flex flex-row items-center justify-between p-2 bg-gray-50 rounded"
+                      >
                         <View className="flex flex-row items-center gap-2">
                           {product.image_url ? (
-                            <Image className="w-16 h-16 rounded" src={product.image_url} mode="aspectFill" />
+                            <Image className="w-12 h-12 rounded" src={product.image_url} mode="aspectFill" />
                           ) : (
-                            <View className="w-16 h-16 rounded bg-gray-200 flex items-center justify-center">
-                              <Text className="block text-xs text-gray-400">无图</Text>
+                            <View className="w-12 h-12 rounded bg-gray-200 flex items-center justify-center">
+                              <Text className="block text-gray-400 text-xs">无图</Text>
                             </View>
                           )}
                           <View>
                             <Text className="block text-sm font-medium text-gray-800">{product.name}</Text>
-                            <Text className="block text-xs text-gray-500">
-                              ID: {product.id} | {product.categories?.name || '未分类'}
-                            </Text>
+                            <Text className="block text-xs text-gray-500">{product.categories?.name || '未分类'}</Text>
                           </View>
                         </View>
-                        <Button variant="outline" size="sm" onClick={() => handleDeleteProduct(product.id)}>
-                          <Text className="text-red-500">删除</Text>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteProduct(product.id)}
+                        >
+                          <Text className="text-red-500 text-xs">删除</Text>
                         </Button>
                       </View>
                     ))}
                   </View>
                 ) : (
-                  <Text className="block text-gray-500 text-center py-8">暂无产品</Text>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Text className="text-lg font-semibold">分类列表 ({categories.length})</Text>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Text className="block text-gray-500 text-center py-8">加载中...</Text>
-                ) : categories.length > 0 ? (
+                  <Text className="block text-gray-400 text-sm">暂无产品，请先添加分类</Text>
+                )
+              ) : (
+                categories.length > 0 ? (
                   <View className="space-y-2">
                     {categories.map(cat => (
-                      <View key={cat.id} className="flex flex-row items-center justify-between p-3 bg-gray-50 rounded">
-                        <View>
-                          <Badge className="mb-1">
-                            <Text>ID: {cat.id}</Text>
+                      <View 
+                        key={cat.id}
+                        className="flex flex-row items-center justify-between p-2 bg-gray-50 rounded"
+                      >
+                        <View className="flex flex-row items-center gap-2">
+                          <Badge className="bg-amber-800 text-white px-2 py-1 text-xs">
+                            ID: {cat.id}
                           </Badge>
-                          <Text className="block text-sm font-medium text-gray-800">{cat.name}</Text>
-                          <Text className="block text-xs text-gray-500">{cat.description || '无描述'}</Text>
+                          <Text className="block text-sm text-gray-800">{cat.name}</Text>
                         </View>
-                        <Button variant="outline" size="sm" onClick={() => handleDeleteCategory(cat.id)}>
-                          <Text className="text-red-500">删除</Text>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteCategory(cat.id)}
+                        >
+                          <Text className="text-red-500 text-xs">删除</Text>
                         </Button>
                       </View>
                     ))}
                   </View>
                 ) : (
-                  <Text className="block text-gray-500 text-center py-8">暂无分类</Text>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                  <Text className="block text-gray-400 text-sm">暂无分类</Text>
+                )
+              )}
+            </CardContent>
+          </Card>
         </View>
       </View>
     </View>

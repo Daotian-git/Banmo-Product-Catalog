@@ -30,15 +30,13 @@ export const products = pgTable(
 		name: varchar("name", { length: 100 }).notNull(),
 		category_id: integer("category_id").notNull().references(() => categories.id),
 		price: numeric("price", { precision: 10, scale: 2 }),  // 可选，图册不展示价格
-		description: varchar("description", { length: 500 }),
+		model: varchar("model", { length: 50 }),  // 产品型号
 		image_key: varchar("image_key", { length: 255 }),  // 对象存储key
 		image_url: varchar("image_url", { length: 500 }),  // 签名URL（临时）
 		material: varchar("material", { length: 100 }),
 		size: varchar("size", { length: 100 }),
-		weight: varchar("weight", { length: 50 }),
 		process: varchar("process", { length: 100 }),
 		origin: varchar("origin", { length: 100 }),
-		features: jsonb("features"),  // 产品特点数组
 		sort_order: integer("sort_order").notNull().default(0),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }),
