@@ -16,6 +16,7 @@ interface Product {
   layout: number // 排列方式：1或2
   category_id: number
   category_name?: string
+  sort_order: number // 排序权重，数值越大越靠前
 }
 
 // 分类类型定义
@@ -39,7 +40,8 @@ export default function AdminWebPage() {
     models: [''], // 多个型号
     sizes: [''], // 多个尺寸
     layout: 1, // 默认1列
-    categoryId: ''
+    categoryId: '',
+    sortOrder: 0 // 排序值，越大越靠前
   })
   const [currentImage, setCurrentImage] = useState('')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -207,7 +209,8 @@ export default function AdminWebPage() {
           models: JSON.stringify(formData.models.filter(m => m)),
           sizes: JSON.stringify(formData.sizes.filter(s => s)),
           layout: String(formData.layout),
-          category_id: formData.categoryId
+          category_id: formData.categoryId,
+          sort_order: String(formData.sortOrder || 0)
         }
         
         const uploadRes = await Network.uploadFile({
@@ -263,7 +266,8 @@ export default function AdminWebPage() {
       models: [''],
       sizes: [''],
       layout: 1,
-      categoryId: ''
+      categoryId: '',
+      sortOrder: 0
     })
     setCurrentImage('')
     setTempImagePath('')
@@ -278,7 +282,8 @@ export default function AdminWebPage() {
       models: product.models || [''],
       sizes: product.sizes || [''],
       layout: product.layout || 1,
-      categoryId: String(product.category_id)
+      categoryId: String(product.category_id),
+      sortOrder: product.sort_order || 0
     })
     setCurrentImage(product.image_url || '')
     setTempImagePath('')
@@ -645,6 +650,23 @@ export default function AdminWebPage() {
                     <Text className="block" style={{ fontSize: '16px', fontWeight: formData.layout === 2 ? 'bold' : 'normal' }}>双列排版</Text>
                   </View>
                 </View>
+              </View>
+
+              {/* 排序值 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>排序值（数字越小越靠前）</Text>
+                <View style={{ backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '8px 12px' }}>
+                  <Input 
+                    style={{ width: '100%', fontSize: '16px' }}
+                    placeholder="输入排序值（默认100）"
+                    type="number"
+                    value={formData.sortOrder.toString()}
+                    onInput={(e) => setFormData(prev => ({ ...prev, sortOrder: parseInt(e.detail.value) || 100 }))}
+                  />
+                </View>
+                <Text className="block" style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  提示：相同分类下，排序值小的产品会排在前面展示
+                </Text>
               </View>
 
               {/* 分类选择 */}
