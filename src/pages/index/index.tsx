@@ -4,34 +4,70 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Network } from '@/network'
 
-// 模拟产品数据（图册展示，无价格）
-const mockProducts = [
-  { id: 1, name: '明式圈椅', category: '座椅', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/0c9e5f6a-amber-chair.png', desc: '经典明式设计，榫卯结构，匠心之作' },
-  { id: 2, name: '新中式茶桌', category: '茶桌', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/tea-table.png', desc: '黑胡桃木，简约大气，茶道之选' },
-  { id: 3, name: '禅意书架', category: '书架', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bookshelf.png', desc: '实木多层，雅致留白，文人雅趣' },
-  { id: 4, name: '宋式案台', category: '案台', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/desk.png', desc: '仿古设计，书房必备' },
-  { id: 5, name: '卧榻', category: '床榻', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bed.png', desc: '楠木制作，沉稳温润' },
-  { id: 6, name: '玄关柜', category: '柜类', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/cabinet.png', desc: '简约实用，入门见雅' },
-]
+interface Category {
+  id: number
+  name: string
+}
 
-const categories = ['全部', '座椅', '茶桌', '书架', '案台', '床榻', '柜类']
+interface Product {
+  id: number
+  name: string
+  categoryId: number
+  categoryName?: string
+  image: string
+  description: string
+}
 
 const IndexPage = () => {
-  const [selectedCategory, setSelectedCategory] = useState('全部')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [searchText, setSearchText] = useState('')
-  const [filteredProducts, setFilteredProducts] = useState(mockProducts)
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let result = mockProducts
-    if (selectedCategory !== '全部') {
-      result = result.filter(p => p.category === selectedCategory)
+    loadData()
+  }, [])
+
+  useEffect(() => {
+    let result = products
+    if (selectedCategoryId !== null) {
+      result = result.filter(p => p.categoryId === selectedCategoryId)
     }
     if (searchText) {
-      result = result.filter(p => p.name.includes(searchText) || p.desc.includes(searchText))
+      result = result.filter(p => 
+        p.name.includes(searchText) || 
+        p.description?.includes(searchText) ||
+        p.categoryName?.includes(searchText)
+      )
     }
     setFilteredProducts(result)
-  }, [selectedCategory, searchText])
+  }, [selectedCategoryId, searchText, products])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      // 获取分类
+      const catRes = await Network.request({ url: '/api/categories' })
+      console.log('分类响应:', catRes.data)
+      const catData = catRes.data?.data || []
+      setCategories(catData)
+
+      // 获取产品
+      const prodRes = await Network.request({ url: '/api/products' })
+      console.log('产品响应:', prodRes.data)
+      const prodData = prodRes.data?.data || []
+      setProducts(prodData)
+      setFilteredProducts(prodData)
+    } catch (error) {
+      console.error('加载数据失败:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const goToDetail = (id: number) => {
     Taro.navigateTo({ url: `/pages/detail/index?id=${id}` })
@@ -39,6 +75,14 @@ const IndexPage = () => {
 
   const goToCategory = () => {
     Taro.switchTab({ url: '/pages/category/index' })
+  }
+
+  if (loading) {
+    return (
+      <View className="min-h-full bg-gray-50 flex flex-col items-center justify-center">
+        <Text className="block text-gray-500">加载中...</Text>
+      </View>
+    )
   }
 
   return (
@@ -64,23 +108,37 @@ const IndexPage = () => {
       </View>
 
       {/* 分类标签 */}
-      <View className="px-4 py-3">
-        <View className="flex flex-row gap-2 overflow-x-auto">
-          {categories.map(cat => (
+      {categories.length > 0 && (
+        <View className="px-4 py-3">
+          <View className="flex flex-row gap-2 overflow-x-auto">
+            {/* 全部选项 */}
             <Badge
-              key={cat}
               className={`px-3 py-2 rounded-full text-sm whitespace-nowrap cursor-pointer ${
-                selectedCategory === cat
+                selectedCategoryId === null
                   ? 'bg-amber-900 text-white'
                   : 'bg-white text-gray-700 border border-gray-200'
               }`}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => setSelectedCategoryId(null)}
             >
-              {cat}
+              全部
             </Badge>
-          ))}
+            {/* 分类列表 */}
+            {categories.map(cat => (
+              <Badge
+                key={cat.id}
+                className={`px-3 py-2 rounded-full text-sm whitespace-nowrap cursor-pointer ${
+                  selectedCategoryId === cat.id
+                    ? 'bg-amber-900 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200'
+                }`}
+                onClick={() => setSelectedCategoryId(cat.id)}
+              >
+                {cat.name}
+              </Badge>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* 推荐标题 */}
       <View className="px-4 mb-3">
@@ -88,40 +146,43 @@ const IndexPage = () => {
         <Text className="block text-sm text-gray-500 mt-1">新中式雅韵，匠心之作</Text>
       </View>
 
-      {/* 产品图册 - 瀑布流展示 */}
+      {/* 产品图册 */}
       <View className="px-4">
-        <View className="flex flex-row gap-3 flex-wrap">
-          {filteredProducts.map(product => (
-            <Card
-              key={product.id}
-              className="w-[calc(50%-8px)] bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer"
-              onClick={() => goToDetail(product.id)}
-            >
-              {/* 图册风格：大图展示 */}
-              <View className="relative">
-                <Image
-                  className="w-full h-52"
-                  src={product.image}
-                  mode="aspectFill"
-                />
-                {/* 分类标签 */}
-                <Badge className="absolute top-2 right-2 bg-amber-800 bg-opacity-80 text-white px-2 py-1 rounded text-xs">
-                  {product.category}
-                </Badge>
-              </View>
-              {/* 简洁信息 */}
-              <CardContent className="p-3">
-                <Text className="block text-base font-medium text-gray-800">{product.name}</Text>
-                <Text className="block text-xs text-gray-500 mt-1 line-clamp-2">{product.desc}</Text>
-              </CardContent>
-            </Card>
-          ))}
-        </View>
-
-        {/* 空状态 */}
-        {filteredProducts.length === 0 && (
+        {filteredProducts.length > 0 ? (
+          <View className="flex flex-row gap-3 flex-wrap">
+            {filteredProducts.map(product => (
+              <Card
+                key={product.id}
+                className="w-[calc(50%-8px)] bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer"
+                onClick={() => goToDetail(product.id)}
+              >
+                {/* 图册风格：大图展示 */}
+                <View className="relative">
+                  <Image
+                    className="w-full h-52"
+                    src={product.image}
+                    mode="aspectFill"
+                  />
+                  {/* 分类标签 */}
+                  {product.categoryName && (
+                    <Badge className="absolute top-2 right-2 bg-amber-800 text-white px-2 py-1 rounded text-xs">
+                      {product.categoryName}
+                    </Badge>
+                  )}
+                </View>
+                {/* 简洁信息 */}
+                <CardContent className="p-3">
+                  <Text className="block text-base font-medium text-gray-800">{product.name}</Text>
+                  <Text className="block text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</Text>
+                </CardContent>
+              </Card>
+            ))}
+          </View>
+        ) : (
           <View className="flex flex-col items-center justify-center py-12">
-            <Text className="block text-gray-400 text-sm">暂无匹配产品</Text>
+            <Text className="block text-gray-400 text-sm">
+              {products.length === 0 ? '暂无产品，请先在后台添加' : '暂无匹配产品'}
+            </Text>
           </View>
         )}
       </View>
