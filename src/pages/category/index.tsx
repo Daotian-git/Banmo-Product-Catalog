@@ -2,7 +2,6 @@ import { View, Text, Image } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { Network } from '@/network'
 
 interface Category {
@@ -18,6 +17,8 @@ interface Product {
   categoryName?: string
   image: string
   description: string
+  material?: string
+  origin?: string
 }
 
 const CategoryPage = () => {
@@ -76,88 +77,51 @@ const CategoryPage = () => {
 
   return (
     <View className="min-h-full bg-gray-50 flex flex-col">
-      {/* 分类导航 */}
-      <View className="bg-white px-4 py-3 border-b border-gray-100">
-        <Text className="block text-lg font-semibold text-gray-700 mb-3">产品分类</Text>
-        {categories.length > 0 ? (
-          <View className="flex flex-row gap-3 overflow-x-auto">
-            {/* 全部选项 */}
-            <View
-              className={`flex flex-col items-center px-3 py-2 rounded-lg cursor-pointer ${
-                selectedCategoryId === null
-                  ? 'bg-amber-900'
-                  : 'bg-gray-50 border border-gray-200'
-              }`}
-              onClick={() => setSelectedCategoryId(null)}
-            >
-              <Text className={`block text-lg ${selectedCategoryId === null ? 'text-white' : 'text-gray-700'}`}>
-                📋
-              </Text>
-              <Text className={`block text-xs mt-1 ${selectedCategoryId === null ? 'text-white' : 'text-gray-600'}`}>
-                全部
-              </Text>
-            </View>
-            {/* 分类列表 */}
-            {categories.map(cat => (
-              <View
-                key={cat.id}
-                className={`flex flex-col items-center px-3 py-2 rounded-lg cursor-pointer ${
-                  selectedCategoryId === cat.id
-                    ? 'bg-amber-900'
-                    : 'bg-gray-50 border border-gray-200'
-                }`}
-                onClick={() => setSelectedCategoryId(cat.id)}
-              >
-                <Text className={`block text-lg ${selectedCategoryId === cat.id ? 'text-white' : 'text-gray-700'}`}>
-                  {cat.icon || '📦'}
-                </Text>
-                <Text className={`block text-xs mt-1 ${selectedCategoryId === cat.id ? 'text-white' : 'text-gray-600'}`}>
-                  {cat.name}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View className="flex flex-col items-center py-4">
-            <Text className="block text-gray-500 text-sm">暂无分类，请先在后台添加分类</Text>
-          </View>
-        )}
-      </View>
-
-      <Separator className="my-2" />
-
       {/* 产品数量 */}
-      <View className="px-4 py-2">
+      <View className="px-4 py-3 bg-white border-b border-gray-100">
         <Text className="block text-sm text-gray-500">
           共 {filteredProducts.length} 件产品
         </Text>
       </View>
 
-      {/* 产品列表 */}
-      <View className="flex-1 px-4 pb-12 overflow-y-auto">
+      {/* 产品列表 - 单列展示 */}
+      <View className="flex-1 px-4 pt-4 pb-20 overflow-y-auto">
         {filteredProducts.length > 0 ? (
-          <View className="flex flex-row gap-3 flex-wrap">
-            {filteredProducts.map(product => (
-              <Card
-                key={product.id}
-                className="w-[calc(50%-8px)] bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer"
-                onClick={() => goToDetail(product.id)}
-              >
-                {/* 图册风格：大图展示 */}
-                <View className="relative">
-                  <Image
-                    className="w-full h-52"
-                    src={product.image}
-                    mode="aspectFill"
-                  />
+          filteredProducts.map(product => (
+            <Card
+              key={product.id}
+              className="w-full bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm mb-4 cursor-pointer"
+              onClick={() => goToDetail(product.id)}
+            >
+              {/* 图册风格：大图展示 */}
+              <View className="relative">
+                <Image
+                  className="w-full h-64"
+                  src={product.image}
+                  mode="aspectFill"
+                />
+              </View>
+              <CardContent className="p-4">
+                <Text className="block text-lg font-semibold text-gray-800">{product.name}</Text>
+                <Text className="block text-sm text-gray-500 mt-2 line-clamp-2">{product.description}</Text>
+                {/* 材质和产地 */}
+                <View className="flex flex-row gap-4 mt-3">
+                  {product.material && (
+                    <View className="flex flex-row items-center">
+                      <Text className="block text-xs text-gray-400">材质：</Text>
+                      <Text className="block text-xs text-amber-800">{product.material}</Text>
+                    </View>
+                  )}
+                  {product.origin && (
+                    <View className="flex flex-row items-center">
+                      <Text className="block text-xs text-gray-400">产地：</Text>
+                      <Text className="block text-xs text-amber-800">{product.origin}</Text>
+                    </View>
+                  )}
                 </View>
-                <CardContent className="p-3">
-                  <Text className="block text-base font-medium text-gray-800">{product.name}</Text>
-                  <Text className="block text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</Text>
-                </CardContent>
-              </Card>
-            ))}
-          </View>
+              </CardContent>
+            </Card>
+          ))
         ) : (
           <View className="flex flex-col items-center justify-center py-12">
             <Text className="block text-gray-400 text-sm">
@@ -166,6 +130,66 @@ const CategoryPage = () => {
           </View>
         )}
       </View>
+
+      {/* 底部分类导航 - 固定在屏幕下方，避开 TabBar */}
+      {categories.length > 0 && (
+        <View
+          style={{
+            position: 'fixed',
+            bottom: 50,
+            left: 0,
+            right: 0,
+            backgroundColor: '#fff',
+            borderTop: '1px solid #e5e7eb',
+            padding: '12px 16px',
+            zIndex: 100
+          }}
+        >
+          <View className="flex flex-row gap-3 overflow-x-auto">
+            {/* 全部选项 */}
+            <View
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                backgroundColor: selectedCategoryId === null ? '#78350f' : '#f9fafb',
+                borderWidth: selectedCategoryId === null ? 0 : 1,
+                borderColor: '#e5e7eb'
+              }}
+              onClick={() => setSelectedCategoryId(null)}
+            >
+              <Text className={`block text-sm ${selectedCategoryId === null ? 'text-white' : 'text-gray-700'}`}>
+                全部
+              </Text>
+            </View>
+            {/* 分类列表 */}
+            {categories.map(cat => (
+              <View
+                key={cat.id}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  backgroundColor: selectedCategoryId === cat.id ? '#78350f' : '#f9fafb',
+                  borderWidth: selectedCategoryId === cat.id ? 0 : 1,
+                  borderColor: '#e5e7eb'
+                }}
+                onClick={() => setSelectedCategoryId(cat.id)}
+              >
+                <Text className={`block text-sm ${selectedCategoryId === cat.id ? 'text-white' : 'text-gray-700'}`}>
+                  {cat.name}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
     </View>
   )
 }
