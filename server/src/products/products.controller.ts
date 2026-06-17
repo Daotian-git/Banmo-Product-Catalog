@@ -4,6 +4,7 @@ import { memoryStorage } from 'multer';
 import { ProductsService } from './products.service';
 import * as xlsx from 'xlsx';
 import * as AdmZip from 'adm-zip';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
 // 类型定义
 interface ProductRow {
@@ -154,8 +155,15 @@ export class ProductsController {
 
     console.log('Excel解析结果:', rows.length, '行数据');
     if (rows.length > 0) {
-      console.log('第一行数据示例:', rows[0]);
+      console.log('第一行数据示例:', JSON.stringify(rows[0], null, 2));
     }
+
+    // 获取所有分类（用于根据名称查找ID）
+    const { data: categoriesData } = await getSupabaseClient()
+      .from('categories')
+      .select('*');
+    const categories = categoriesData || [];
+    console.log('可用分类数量:', categories.length);
 
     // 解压ZIP获取图片
     const images: Map<string, Buffer> = new Map();
@@ -185,9 +193,54 @@ export class ProductsController {
         const imageFilename = row['图片文件名'] || row['image'] || '';
         const imageBuffer = images.get(imageFilename) || null;
 
+        // 解析分类ID（支持数字ID或分类名称）
+        let categoryId = 1;
+        const categoryValue = row['分类ID'] || row['分类名称'] || row['category_id'] || row['category'] || '';
+        
+        if (categoryValue) {
+          // 如果是数字，直接使用
+          const numericId = Number(categoryValue);
+          if (!isNaN(numericId) && numericId > 0) {
+            categoryId = numericId;
+          } else {
+            // 如果是分类名称，查找对应的ID
+            // 支持格式：'乌金木-沙发' 或 '沙发'（二级分类名）
+            const categoryName = String(categoryValue).trim();
+            
+            // 尝试匹配完整路径（一级-二级）
+            if (categoryName.includes('-') || categoryName.includes('/')) {
+              const parts = categoryName.split(/[-\/]/).map(s => s.trim());
+              const parentName = parts[0];
+              const childName = parts[1];
+              const parent = categories.find(c => c.name === parentName && !c.parent_id);
+              if (parent) {
+                const child = categories.find(c => c.name === childName && c.parent_id === parent.id);
+                if (child) {
+                  categoryId = child.id;
+                }
+              }
+            } else {
+              // 直接匹配分类名称（可能是二级分类）
+              const matchedCategory = categories.find(c => c.name === categoryName);
+              if (matchedCategory) {
+                categoryId = matchedCategory.id;
+              }
+            }
+          }
+        }
+
+        // 验证分类ID是否存在
+        const categoryExists = categories.find(c => c.id === categoryId);
+        if (!categoryExists) {
+          console.log('分类ID不存在:', categoryId, '原始值:', categoryValue);
+          categoryId = 1; // 回退到默认分类
+        }
+
+        console.log('创建产品:', row['名称'] || row['name'], '分类ID:', categoryId);
+
         const product = await this.productsService.create({
           name: row['名称'] || row['name'] || '',
-          category_id: Number(row['分类ID'] || row['category_id']) || 1,
+          category_id: categoryId,
           models: modelsData,
           layout: Number(row['排列方式'] || row['layout']) || 1,
           imageBuffer: imageBuffer || undefined,
@@ -195,11 +248,15 @@ export class ProductsController {
         });
         created.push(product);
       } catch (error) {
+        console.error('创建产品失败:', error.message, '数据:', row);
         failed.push({ row, error: error.message });
       }
     }
 
     console.log('导入结果: 成功', created.length, '失败', failed.length);
+    if (failed.length > 0) {
+      console.log('失败详情:', JSON.stringify(failed, null, 2));
+    }
 
     return { 
       code: 200, 
