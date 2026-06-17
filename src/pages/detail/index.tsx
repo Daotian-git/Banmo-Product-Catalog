@@ -1,20 +1,18 @@
 import { View, Text, Image } from '@tarojs/components'
-import Taro, { useRouter } from '@tarojs/taro'
+import { useRouter } from '@tarojs/taro'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 
-// 模拟产品详情数据
+// 模拟产品详情数据（图册展示，无价格）
 const mockProductDetails = {
   1: {
     id: 1,
     name: '明式圈椅',
     category: '座椅',
-    price: '¥12,800',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/0c9e5f6a-amber-chair.png',
-    desc: '经典明式设计，榫卯结构，匠心之作',
+    desc: '经典明式设计，榫卯结构，匠心之作。线条流畅，坐感舒适，传承千年家具精髓。',
     material: '北美黑胡桃木',
     size: '宽58cm × 深48cm × 高85cm',
     weight: '约12kg',
@@ -26,9 +24,8 @@ const mockProductDetails = {
     id: 2,
     name: '新中式茶桌',
     category: '茶桌',
-    price: '¥8,500',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/tea-table.png',
-    desc: '黑胡桃木，简约大气，茶道之选',
+    desc: '黑胡桃木，简约大气，茶道之选。方寸之间，尽显东方雅韵。',
     material: '北美黑胡桃木',
     size: '长120cm × 宽60cm × 高75cm',
     weight: '约25kg',
@@ -40,9 +37,8 @@ const mockProductDetails = {
     id: 3,
     name: '禅意书架',
     category: '书架',
-    price: '¥6,200',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bookshelf.png',
-    desc: '实木多层，雅致留白，文人雅趣',
+    desc: '实木多层，雅致留白，文人雅趣。书卷藏于木，诗意栖于心。',
     material: '白橡木',
     size: '宽80cm × 深30cm × 高180cm',
     weight: '约18kg',
@@ -54,9 +50,8 @@ const mockProductDetails = {
     id: 4,
     name: '宋式案台',
     category: '案台',
-    price: '¥15,000',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/desk.png',
-    desc: '仿古设计，文人雅趣，书房必备',
+    desc: '仿古设计，文人雅趣，书房必备。一案一笔，书写千年风雅。',
     material: '缅甸花梨木',
     size: '长180cm × 宽80cm × 高78cm',
     weight: '约35kg',
@@ -68,9 +63,8 @@ const mockProductDetails = {
     id: 5,
     name: '卧榻',
     category: '床榻',
-    price: '¥22,000',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bed.png',
-    desc: '楠木制作，沉稳温润，古韵悠长',
+    desc: '楠木制作，沉稳温润，古韵悠长。卧榻之上，梦回千年。',
     material: '金丝楠木',
     size: '长200cm × 宽180cm × 高45cm',
     weight: '约50kg',
@@ -82,9 +76,8 @@ const mockProductDetails = {
     id: 6,
     name: '玄关柜',
     category: '柜类',
-    price: '¥4,800',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/cabinet.png',
-    desc: '简约实用，收纳有道，入门见雅',
+    desc: '简约实用，收纳有道，入门见雅。一柜一境，开启归家之旅。',
     material: '北美黑胡桃木',
     size: '宽100cm × 深40cm × 高80cm',
     weight: '约15kg',
@@ -96,9 +89,8 @@ const mockProductDetails = {
     id: 7,
     name: '条案',
     category: '案台',
-    price: '¥9,800',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/console-table.png',
-    desc: '玄关条案，简约典雅，入户雅致',
+    desc: '玄关条案，简约典雅，入户雅致。',
     material: '北美黑胡桃木',
     size: '长120cm × 宽35cm × 高85cm',
     weight: '约12kg',
@@ -110,9 +102,8 @@ const mockProductDetails = {
     id: 8,
     name: '罗汉床',
     category: '床榻',
-    price: '¥28,000',
     image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/daybed.png',
-    desc: '传统罗汉床，可坐可卧，客厅雅器',
+    desc: '传统罗汉床，可坐可卧，客厅雅器。',
     material: '缅甸花梨木',
     size: '长200cm × 宽100cm × 高80cm',
     weight: '约40kg',
@@ -132,15 +123,6 @@ const DetailPage = () => {
     setProduct(detail || mockProductDetails[1])
   }, [router.params.id])
 
-  const handleContact = () => {
-    Taro.showModal({
-      title: '咨询产品',
-      content: '请拨打客服热线：400-888-8888\n或添加微信：YumuXuan',
-      showCancel: false,
-      confirmText: '知道了'
-    })
-  }
-
   if (!product) {
     return (
       <View className="min-h-full bg-gray-50 flex items-center justify-center">
@@ -150,64 +132,61 @@ const DetailPage = () => {
   }
 
   return (
-    <View className="min-h-full bg-gray-50 pb-16">
-      {/* 产品大图 */}
+    <View className="min-h-full bg-gray-50 pb-8">
+      {/* 产品大图 - 图册风格 */}
       <View className="bg-white">
         <Image
-          className="w-full h-64"
+          className="w-full h-72"
           src={product.image}
           mode="aspectFill"
         />
       </View>
 
-      {/* 产品基本信息 */}
+      {/* 产品标题与简介 */}
       <Card className="mt-3 mx-4 bg-white rounded-lg border border-gray-100">
         <CardHeader className="pb-2">
           <View className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">{product.name}</CardTitle>
-            <Badge className="bg-amber-800 text-white px-2 py-1 rounded text-xs">
+            <CardTitle className="text-xl font-semibold text-gray-800">{product.name}</CardTitle>
+            <Badge className="bg-amber-800 text-white px-3 py-1 rounded text-xs">
               {product.category}
             </Badge>
           </View>
-          <CardDescription className="text-sm text-gray-500 mt-1">
+          <CardDescription className="text-sm text-gray-500 mt-2 leading-relaxed">
             {product.desc}
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
-          <Text className="block text-amber-900 text-xl font-bold">{product.price}</Text>
-        </CardContent>
       </Card>
 
       {/* 产品参数 */}
       <Card className="mt-3 mx-4 bg-white rounded-lg border border-gray-100">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base text-gray-700">产品参数</CardTitle>
+          <CardTitle className="text-base text-gray-700 font-medium">产品参数</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <View className="space-y-2">
-            <View className="flex flex-row justify-between">
+            <View className="flex flex-row justify-between py-1">
               <Text className="block text-sm text-gray-500">材质</Text>
-              <Text className="block text-sm text-gray-700">{product.material}</Text>
+              <Text className="block text-sm text-gray-700 font-medium">{product.material}</Text>
             </View>
             <Separator />
-            <View className="flex flex-row justify-between">
+            <View className="flex flex-row justify-between py-1">
               <Text className="block text-sm text-gray-500">尺寸</Text>
-              <Text className="block text-sm text-gray-700">{product.size}</Text>
+              <Text className="block text-sm text-gray-700 font-medium">{product.size}</Text>
             </View>
             <Separator />
-            <View className="flex flex-row justify-between">
+            <View className="flex flex-row justify-between py-1">
               <Text className="block text-sm text-gray-500">重量</Text>
-              <Text className="block text-sm text-gray-700">{product.weight}</Text>
+              <Text className="block text-sm text-gray-700 font-medium">{product.weight}</Text>
             </View>
             <Separator />
-            <View className="flex flex-row justify-between">
+            <View className="flex flex-row justify-between py-1">
               <Text className="block text-sm text-gray-500">工艺</Text>
-              <Text className="block text-sm text-gray-700">{product.process}</Text>
+              <Text className="block text-sm text-gray-700 font-medium">{product.process}</Text>
             </View>
             <Separator />
-            <View className="flex flex-row justify-between">
+            <View className="flex flex-row justify-between py-1">
               <Text className="block text-sm text-gray-500">产地</Text>
-              <Text className="block text-sm text-gray-700">{product.origin}</Text>
+              <Text className="block text-sm text-gray-700 font-medium">{product.origin}</Text>
             </View>
           </View>
         </CardContent>
@@ -216,14 +195,14 @@ const DetailPage = () => {
       {/* 产品特点 */}
       <Card className="mt-3 mx-4 bg-white rounded-lg border border-gray-100">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base text-gray-700">产品特点</CardTitle>
+          <CardTitle className="text-base text-gray-700 font-medium">产品特点</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <View className="flex flex-row gap-2 flex-wrap">
             {product.features.map((feature: string, idx: number) => (
               <Badge
                 key={idx}
-                className="bg-gray-50 text-gray-600 px-2 py-1 rounded text-xs border border-gray-200"
+                className="bg-gray-50 text-gray-600 px-3 py-1 rounded-full text-xs border border-gray-200"
               >
                 {feature}
               </Badge>
@@ -232,14 +211,16 @@ const DetailPage = () => {
         </CardContent>
       </Card>
 
-      {/* 咨询按钮 */}
+      {/* 底部咨询入口 */}
       <View className="px-4 mt-4">
-        <Button
-          className="w-full bg-amber-900 text-white rounded-lg py-3"
-          onClick={handleContact}
-        >
-          <Text className="text-white text-base">咨询客服</Text>
-        </Button>
+        <Card className="bg-amber-50 rounded-lg border border-amber-200">
+          <CardContent className="py-4">
+            <View className="flex flex-col items-center">
+              <Text className="block text-amber-900 font-medium mb-1">如需了解更多信息</Text>
+              <Text className="block text-amber-700 text-sm">请联系客服：400-888-8888</Text>
+            </View>
+          </CardContent>
+        </Card>
       </View>
     </View>
   )

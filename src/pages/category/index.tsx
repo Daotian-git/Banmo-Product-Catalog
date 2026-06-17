@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 
-// 模拟产品数据
+// 模拟产品数据（图册展示，无价格）
 const mockProducts = [
-  { id: 1, name: '明式圈椅', category: '座椅', price: '¥12,800', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/0c9e5f6a-amber-chair.png', desc: '经典明式设计，榫卯结构' },
-  { id: 2, name: '新中式茶桌', category: '茶桌', price: '¥8,500', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/tea-table.png', desc: '黑胡桃木，简约大气' },
-  { id: 3, name: '禅意书架', category: '书架', price: '¥6,200', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bookshelf.png', desc: '实木多层，雅致留白' },
-  { id: 4, name: '宋式案台', category: '案台', price: '¥15,000', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/desk.png', desc: '仿古设计，文人雅趣' },
-  { id: 5, name: '卧榻', category: '床榻', price: '¥22,000', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bed.png', desc: '楠木制作，沉稳温润' },
-  { id: 6, name: '玄关柜', category: '柜类', price: '¥4,800', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/cabinet.png', desc: '简约实用，收纳有道' },
-  { id: 7, name: '条案', category: '案台', price: '¥9,800', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/console-table.png', desc: '玄关条案，简约典雅' },
-  { id: 8, name: '罗汉床', category: '床榻', price: '¥28,000', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/daybed.png', desc: '传统罗汉床，可坐可卧' },
+  { id: 1, name: '明式圈椅', category: '座椅', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/0c9e5f6a-amber-chair.png', desc: '经典明式设计，榫卯结构，匠心之作' },
+  { id: 2, name: '新中式茶桌', category: '茶桌', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/tea-table.png', desc: '黑胡桃木，简约大气，茶道之选' },
+  { id: 3, name: '禅意书架', category: '书架', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bookshelf.png', desc: '实木多层，雅致留白，文人雅趣' },
+  { id: 4, name: '宋式案台', category: '案台', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/desk.png', desc: '仿古设计，书房必备' },
+  { id: 5, name: '卧榻', category: '床榻', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bed.png', desc: '楠木制作，沉稳温润' },
+  { id: 6, name: '玄关柜', category: '柜类', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/cabinet.png', desc: '简约实用，入门见雅' },
+  { id: 7, name: '条案', category: '案台', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/console-table.png', desc: '玄关条案，简约典雅' },
+  { id: 8, name: '罗汉床', category: '床榻', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/daybed.png', desc: '传统罗汉床，可坐可卧' },
 ]
 
 const categories = [
@@ -88,17 +88,17 @@ const CategoryPage = () => {
               className="w-[calc(50%-8px)] bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer"
               onClick={() => goToDetail(product.id)}
             >
+              {/* 图册风格：大图展示 */}
               <View className="relative">
                 <Image
-                  className="w-full h-40"
+                  className="w-full h-52"
                   src={product.image}
                   mode="aspectFill"
                 />
               </View>
               <CardContent className="p-3">
-                <Text className="block text-base font-medium text-gray-700 truncate">{product.name}</Text>
-                <Text className="block text-xs text-gray-500 mt-1 truncate">{product.desc}</Text>
-                <Text className="block text-amber-900 font-semibold mt-2">{product.price}</Text>
+                <Text className="block text-base font-medium text-gray-800">{product.name}</Text>
+                <Text className="block text-xs text-gray-500 mt-1 line-clamp-2">{product.desc}</Text>
               </CardContent>
             </Card>
           ))}

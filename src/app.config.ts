@@ -4,7 +4,7 @@ export default defineAppConfig({
     'pages/category/index',
     'pages/detail/index',
     'pages/profile/index',
-    'pages/admin/index'
+    'pages/admin-web/index'
   ],
   window: {
     backgroundTextStyle: 'light',

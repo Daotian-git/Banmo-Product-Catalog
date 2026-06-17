@@ -5,14 +5,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 
-// 模拟产品数据
+// 模拟产品数据（图册展示，无价格）
 const mockProducts = [
-  { id: 1, name: '明式圈椅', category: '座椅', price: '¥12,800', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/0c9e5f6a-amber-chair.png', desc: '经典明式设计，榫卯结构' },
-  { id: 2, name: '新中式茶桌', category: '茶桌', price: '¥8,500', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/tea-table.png', desc: '黑胡桃木，简约大气' },
-  { id: 3, name: '禅意书架', category: '书架', price: '¥6,200', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bookshelf.png', desc: '实木多层，雅致留白' },
-  { id: 4, name: '宋式案台', category: '案台', price: '¥15,000', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/desk.png', desc: '仿古设计，文人雅趣' },
-  { id: 5, name: '卧榻', category: '床榻', price: '¥22,000', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bed.png', desc: '楠木制作，沉稳温润' },
-  { id: 6, name: '玄关柜', category: '柜类', price: '¥4,800', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/cabinet.png', desc: '简约实用，收纳有道' },
+  { id: 1, name: '明式圈椅', category: '座椅', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/0c9e5f6a-amber-chair.png', desc: '经典明式设计，榫卯结构，匠心之作' },
+  { id: 2, name: '新中式茶桌', category: '茶桌', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/tea-table.png', desc: '黑胡桃木，简约大气，茶道之选' },
+  { id: 3, name: '禅意书架', category: '书架', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bookshelf.png', desc: '实木多层，雅致留白，文人雅趣' },
+  { id: 4, name: '宋式案台', category: '案台', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/desk.png', desc: '仿古设计，书房必备' },
+  { id: 5, name: '卧榻', category: '床榻', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/bed.png', desc: '楠木制作，沉稳温润' },
+  { id: 6, name: '玄关柜', category: '柜类', image: 'https://tos-cn-beijing.ivolces.com/images/coze-assets/cabinet.png', desc: '简约实用，入门见雅' },
 ]
 
 const categories = ['全部', '座椅', '茶桌', '书架', '案台', '床榻', '柜类']
@@ -88,7 +88,7 @@ const IndexPage = () => {
         <Text className="block text-sm text-gray-500 mt-1">新中式雅韵，匠心之作</Text>
       </View>
 
-      {/* 产品网格 */}
+      {/* 产品图册 - 瀑布流展示 */}
       <View className="px-4">
         <View className="flex flex-row gap-3 flex-wrap">
           {filteredProducts.map(product => (
@@ -97,20 +97,22 @@ const IndexPage = () => {
               className="w-[calc(50%-8px)] bg-white rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer"
               onClick={() => goToDetail(product.id)}
             >
+              {/* 图册风格：大图展示 */}
               <View className="relative">
                 <Image
-                  className="w-full h-40"
+                  className="w-full h-52"
                   src={product.image}
                   mode="aspectFill"
                 />
-                <Badge className="absolute top-2 right-2 bg-amber-800 text-white px-2 py-1 rounded text-xs">
+                {/* 分类标签 */}
+                <Badge className="absolute top-2 right-2 bg-amber-800 bg-opacity-80 text-white px-2 py-1 rounded text-xs">
                   {product.category}
                 </Badge>
               </View>
+              {/* 简洁信息 */}
               <CardContent className="p-3">
-                <Text className="block text-base font-medium text-gray-700 truncate">{product.name}</Text>
-                <Text className="block text-xs text-gray-500 mt-1 truncate">{product.desc}</Text>
-                <Text className="block text-amber-900 font-semibold mt-2">{product.price}</Text>
+                <Text className="block text-base font-medium text-gray-800">{product.name}</Text>
+                <Text className="block text-xs text-gray-500 mt-1 line-clamp-2">{product.desc}</Text>
               </CardContent>
             </Card>
           ))}

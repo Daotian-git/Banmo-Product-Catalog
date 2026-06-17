@@ -2,8 +2,6 @@ import { View, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Settings } from 'lucide-react-taro'
 
 const ProfilePage = () => {
   const handleCall = () => {
@@ -13,10 +11,6 @@ const ProfilePage = () => {
       showCancel: false,
       confirmText: '知道了'
     })
-  }
-
-  const handleAdmin = () => {
-    Taro.navigateTo({ url: '/pages/admin/index' })
   }
 
   return (
@@ -67,16 +61,6 @@ const ProfilePage = () => {
               <Text className="block text-sm text-gray-700">联系客服</Text>
               <Text className="block text-xs text-gray-400">400-888-8888</Text>
             </View>
-            <View
-              className="flex flex-row items-center justify-between px-4 py-3 cursor-pointer"
-              onClick={handleAdmin}
-            >
-              <View className="flex flex-row items-center gap-2">
-                <Settings size={16} color="#6b7280" />
-                <Text className="block text-sm text-gray-700">产品管理</Text>
-              </View>
-              <Text className="block text-xs text-gray-400">管理后台</Text>
-            </View>
           </View>
         </CardContent>
       </Card>
@@ -90,7 +74,7 @@ const ProfilePage = () => {
           <Text className="block text-sm text-gray-500 leading-relaxed">
             雅木轩创立于2010年，专注于新中式家具设计与制作。我们秉承&apos;雅致、简约、匠心&apos;的理念，将传统东方美学与现代生活方式完美融合。
           </Text>
-          <Separator className="my-3" />
+          <View className="my-3 border-t border-gray-200" />
           <View className="flex flex-row gap-2 flex-wrap">
             <Badge className="bg-amber-800 text-white px-2 py-1 rounded text-xs">榫卯工艺</Badge>
             <Badge className="bg-amber-800 text-white px-2 py-1 rounded text-xs">实木定制</Badge>
