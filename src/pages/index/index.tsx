@@ -74,7 +74,7 @@ const IndexPage = () => {
         {/* 产品信息 */}
         <View style={{ padding: isDoubleColumn ? '8px' : '12px' }}>
           {/* 产品名称 + 分类标签（同一行） */}
-          <View style={{ marginBottom: '4px' }}>
+          <View style={{ marginBottom: '4px', display: 'flex', flexDirection: 'row' }}>
             <Text style={{ 
               fontSize: isDoubleColumn ? '12px' : '14px',
               fontWeight: 'bold',
@@ -95,7 +95,7 @@ const IndexPage = () => {
             )}
           </View>
           
-          {/* 型号和尺寸（空格分隔） */}
+          {/* 型号和尺寸（加3个空格分隔） */}
           {product.models && product.models.length > 0 && (
             <View>
               {product.models.map((m, idx) => (
@@ -107,7 +107,7 @@ const IndexPage = () => {
                     color: '#666'
                   }}
                 >
-                  {m.model} {m.size}
+                  {m.model}    {m.size}
                 </Text>
               ))}
             </View>

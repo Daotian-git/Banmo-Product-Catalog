@@ -33,6 +33,132 @@ export class ProductsController {
     return { code: 200, msg: 'success', data: products };
   }
 
+  // 导出产品（必须在 :id 路由之前）
+  @Get('export')
+  async exportProducts() {
+    const products = await this.productsService.findAll();
+    
+    // 构建 Excel 数据
+    const excelData = products.map(p => ({
+      '产品编号': p.code || '',
+      '产品名称': p.name,
+      '分类': p.category_name || '',
+      '型号': p.models?.map(m => m.model).join(';') || '',
+      '尺寸': p.models?.map(m => m.size).join(';') || '',
+      '排列方式': p.layout || 1,
+      '排序权重': p.sort_order || 0,
+      '图片URL': p.image_url || '',
+      '图片文件名': p.image_key?.split('/').pop() || ''
+    }));
+
+    // 创建工作簿
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet(excelData);
+    xlsx.utils.book_append_sheet(wb, ws, '产品列表');
+    
+    // 生成 Excel 文件
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        filename: '产品导出_' + new Date().toISOString().slice(0,10) + '.xlsx',
+        content: buffer.toString('base64')
+      }
+    };
+  }
+
+  // 获取导入模板（必须在 :id 路由之前）
+  @Get('template/import')
+  async getImportTemplate() {
+    const templateData = [
+      {
+        '产品编号': 'BM-001',
+        '产品名称': '示例产品',
+        '分类': '乌金木',
+        '型号': 'MJ-001;MJ-002',
+        '尺寸': '180×90×85cm;200×100×90cm',
+        '排列方式': 1,
+        '排序权重': 0,
+        '图片文件名': 'product-001.jpg'
+      }
+    ];
+    
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet(templateData);
+    xlsx.utils.book_append_sheet(wb, ws, '导入模板');
+    
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        filename: '产品导入模板.xlsx',
+        content: buffer.toString('base64')
+      }
+    };
+  }
+
+  // 获取修改模板（必须在 :id 路由之前）
+  @Get('template/update')
+  async getUpdateTemplate() {
+    const templateData = [
+      {
+        '产品编号': 'BM-001',
+        '产品名称': '修改后的名称',
+        '分类': '黑檀木',
+        '型号': 'MJ-001;MJ-002',
+        '尺寸': '180×90×85cm;200×100×90cm',
+        '排列方式': 1,
+        '排序权重': 10,
+        '图片文件名': 'new-image.jpg'
+      }
+    ];
+    
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet(templateData);
+    xlsx.utils.book_append_sheet(wb, ws, '修改模板');
+    
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        filename: '产品修改模板.xlsx',
+        content: buffer.toString('base64')
+      }
+    };
+  }
+
+  // 获取删除模板（必须在 :id 路由之前）
+  @Get('template/delete')
+  async getDeleteTemplate() {
+    const templateData = [
+      {
+        '产品编号': 'BM-001',
+        '型号': 'MJ-001'
+      }
+    ];
+    
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet(templateData);
+    xlsx.utils.book_append_sheet(wb, ws, '删除模板');
+    
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        filename: '产品删除模板.xlsx',
+        content: buffer.toString('base64')
+      }
+    };
+  }
+
   // 获取单个产品
   @Get(':id')
   async findOne(@Param('id') id: string) {
@@ -399,41 +525,6 @@ export class ProductsController {
   }
 
   // ==================== 批量操作接口 ====================
-
-  // 导出所有产品为 Excel
-  @Get('export')
-  async exportProducts() {
-    const products = await this.productsService.findAll();
-    
-    // 构建 Excel 数据
-    const excelData = products.map(p => ({
-      '产品编号': p.code || '',
-      '产品名称': p.name,
-      '分类': p.category_name || '',
-      '型号': p.models?.map(m => m.model).join(';') || '',
-      '尺寸': p.models?.map(m => m.size).join(';') || '',
-      '排列方式': p.layout || 1,
-      '排序权重': p.sort_order || 0,
-      '图片URL': p.image_url || ''
-    }));
-
-    // 创建工作簿
-    const wb = xlsx.utils.book_new();
-    const ws = xlsx.utils.json_to_sheet(excelData);
-    xlsx.utils.book_append_sheet(wb, ws, '产品列表');
-
-    // 导出为 buffer
-    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-
-    return {
-      code: 200,
-      msg: 'success',
-      data: {
-        filename: '产品导出_' + new Date().toISOString().slice(0, 10) + '.xlsx',
-        buffer: buffer.toString('base64')
-      }
-    };
-  }
 
   // 批量删除（按型号删除，当产品所有型号都被删除时删除整个产品）
   @Post('batch-delete')

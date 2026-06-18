@@ -16,16 +16,6 @@ const ProfilePage = () => {
 
   return (
     <View style={{ minHeight: '100vh', backgroundColor: '#fafafa', padding: '20px', paddingBottom: '80px' }}>
-      {/* 标题 */}
-      <View style={{ marginBottom: '24px' }}>
-        <Text style={{ display: 'block', fontSize: '24px', fontWeight: 'bold', color: '#3a2a1c' }}>
-          半墨家具
-        </Text>
-        <Text style={{ display: 'block', fontSize: '14px', color: '#666', marginTop: '4px' }}>
-          新中式产品图册
-        </Text>
-      </View>
-
       {/* 公司简介 */}
       <View style={{ 
         backgroundColor: '#fff', 
@@ -95,16 +85,6 @@ const ProfilePage = () => {
           <Text style={{ fontSize: '14px', color: '#333' }}>联系客服</Text>
           <Text style={{ fontSize: '12px', color: '#999' }}>400-888-8888</Text>
         </View>
-      </View>
-
-      {/* 底部信息 */}
-      <View style={{ marginTop: '40px' }}>
-        <Text style={{ display: 'block', textAlign: 'center', fontSize: '12px', color: '#999' }}>
-          半墨家具 © 1985-2024
-        </Text>
-        <Text style={{ display: 'block', textAlign: 'center', fontSize: '12px', color: '#999', marginTop: '4px' }}>
-          江苏徐州 · 新中式家具工艺传承
-        </Text>
       </View>
     </View>
   )
