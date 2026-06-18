@@ -6,6 +6,7 @@ import { getSupabaseClient } from '../storage/database/supabase-client';
 export interface CreateProductData {
   name: string;
   category_id: number;
+  code?: string; // 产品编号
   models?: Array<{ model: string; size: string }>;
   layout?: number;
   imageFile?: Express.Multer.File;
@@ -17,6 +18,7 @@ export interface CreateProductData {
 export interface UpdateProductData {
   name?: string;
   category_id?: number;
+  code?: string; // 产品编号
   models?: Array<{ model: string; size: string }>;
   layout?: number;
   imageFile?: Express.Multer.File;
@@ -176,6 +178,7 @@ export class ProductsService {
       .insert({
         name: data.name,
         category_id: data.category_id,
+        code: data.code || null,
         models: data.models || [],
         layout: data.layout || 1,
         image_key: imageKey,
@@ -215,6 +218,7 @@ export class ProductsService {
       .update({
         name: data.name ?? existing.name,
         category_id: data.category_id ?? existing.category_id,
+        code: data.code ?? existing.code,
         models: data.models ?? existing.models,
         layout: data.layout ?? existing.layout,
         image_key: imageKey,

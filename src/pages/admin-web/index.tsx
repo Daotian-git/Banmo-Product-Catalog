@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 interface Product {
   id: number
   name: string
+  code?: string // 产品编号
   models: string[] // 多个型号
   image_url?: string
   sizes: string[] // 多个尺寸
@@ -37,6 +38,7 @@ export default function AdminWebPage() {
   // 产品表单数据
   const [formData, setFormData] = useState({
     name: '',
+    code: '', // 产品编号
     models: [''], // 多个型号
     sizes: [''], // 多个尺寸
     layout: 1, // 默认1列
@@ -246,6 +248,7 @@ export default function AdminWebPage() {
         // 有图片，使用 uploadFile
         const uploadData = {
           name: formData.name,
+          code: formData.code || '',
           models: JSON.stringify(formData.models.filter(m => m)),
           sizes: JSON.stringify(formData.sizes.filter(s => s)),
           layout: String(formData.layout),
@@ -276,10 +279,12 @@ export default function AdminWebPage() {
           method: 'PUT',
           data: {
             name: formData.name,
+            code: formData.code || undefined,
             models: formData.models.filter(m => m),
             sizes: formData.sizes.filter(s => s),
             layout: formData.layout,
-            category_id: parseInt(formData.categoryId)
+            category_id: parseInt(formData.categoryId),
+            sort_order: formData.sortOrder || 0
           }
         })
         
@@ -303,6 +308,7 @@ export default function AdminWebPage() {
   const resetForm = () => {
     setFormData({
       name: '',
+      code: '',
       models: [''],
       sizes: [''],
       layout: 1,
@@ -319,6 +325,7 @@ export default function AdminWebPage() {
     setEditingProduct(product)
     setFormData({
       name: product.name,
+      code: product.code || '',
       models: product.models || [''],
       sizes: product.sizes || [''],
       layout: product.layout || 1,
@@ -562,6 +569,19 @@ export default function AdminWebPage() {
                     placeholder="输入产品名称"
                     value={formData.name}
                     onInput={(e) => setFormData(prev => ({ ...prev, name: e.detail.value }))}
+                  />
+                </View>
+              </View>
+
+              {/* 产品编号 */}
+              <View style={{ marginBottom: '16px' }}>
+                <Text className="block" style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>产品编号（可选）</Text>
+                <View style={{ backgroundColor: '#f5f5f5', borderRadius: '8px', padding: '8px 12px' }}>
+                  <Input 
+                    style={{ width: '100%', fontSize: '16px' }}
+                    placeholder="如：MYSF901"
+                    value={formData.code}
+                    onInput={(e) => setFormData(prev => ({ ...prev, code: e.detail.value }))}
                   />
                 </View>
               </View>

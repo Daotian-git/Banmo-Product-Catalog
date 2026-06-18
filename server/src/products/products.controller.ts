@@ -48,6 +48,7 @@ export class ProductsController {
     @Body() body: {
       name: string;
       category_id: number;
+      code?: string; // 产品编号
       models: string;  // JSON字符串，如 [{"model": "MJ-001", "size": "120×60"}]
       layout: number;
     },
@@ -57,6 +58,7 @@ export class ProductsController {
     const product = await this.productsService.create({
       name: body.name,
       category_id: body.category_id,
+      code: body.code,
       models: modelsData,
       layout: body.layout || 1,
       imageFile: file
@@ -73,6 +75,7 @@ export class ProductsController {
     @Body() body: {
       name?: string;
       category_id?: number;
+      code?: string; // 产品编号
       models?: string;
       layout?: number;
     },
@@ -82,6 +85,7 @@ export class ProductsController {
     const product = await this.productsService.update(Number(id), {
       name: body.name,
       category_id: body.category_id,
+      code: body.code,
       models: modelsData,
       layout: body.layout,
       imageFile: file
@@ -240,6 +244,7 @@ export class ProductsController {
 
         const product = await this.productsService.create({
           name: row['名称'] || row['name'] || '',
+          code: row['编号'] || row['产品编号'] || row['code'] || undefined,
           category_id: categoryId,
           models: modelsData,
           layout: Number(row['排列方式'] || row['layout']) || 1,
@@ -325,6 +330,7 @@ export class ProductsController {
 
         const product = await this.productsService.create({
           name: row['名称'] || row['name'] || '',
+          code: row['编号'] || row['产品编号'] || row['code'] || undefined,
           category_id: Number(row['分类ID'] || row['category_id']) || 1,
           models: modelsData,
           layout: Number(row['排列方式'] || row['layout']) || 1,

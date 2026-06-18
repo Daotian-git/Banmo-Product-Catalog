@@ -10,6 +10,7 @@ interface ProductModel {
 interface Product {
   id: number
   name: string
+  code?: string // 产品编号
   models: ProductModel[] // 型号和尺寸数组
   image_url: string
   layout: number // 排列方式：1单列，2双列
@@ -83,6 +84,20 @@ const IndexPage = () => {
           >
             {product.name}
           </Text>
+          
+          {/* 产品编号 */}
+          {product.code && (
+            <Text
+              style={{
+                display: 'block',
+                fontSize: isDoubleColumn ? '12px' : '14px',
+                color: '#888',
+                marginBottom: '4px'
+              }}
+            >
+              编号：{product.code}
+            </Text>
+          )}
           
           {/* 型号和对应尺寸 */}
           {product.models && product.models.length > 0 && (
