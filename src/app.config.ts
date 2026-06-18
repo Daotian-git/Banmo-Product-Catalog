@@ -1,14 +1,13 @@
 export default defineAppConfig({
   pages: [
-    'pages/index/index',
-    'pages/category/index',
     'pages/profile/index',
+    'pages/index/index',
     'pages/admin-web/index'
   ],
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#fafafa',
-    navigationBarTitleText: '雅木轩',
+    navigationBarTitleText: '半墨家具',
     navigationBarTextStyle: 'black'
   },
   tabBar: {
@@ -18,22 +17,16 @@ export default defineAppConfig({
     borderStyle: 'black',
     list: [
       {
-        pagePath: 'pages/index/index',
-        text: '首页',
-        iconPath: './assets/tabbar/home.png',
-        selectedIconPath: './assets/tabbar/home-active.png'
-      },
-      {
-        pagePath: 'pages/category/index',
-        text: '分类',
-        iconPath: './assets/tabbar/grid.png',
-        selectedIconPath: './assets/tabbar/grid-active.png'
-      },
-      {
         pagePath: 'pages/profile/index',
-        text: '我的',
-        iconPath: './assets/tabbar/user.png',
-        selectedIconPath: './assets/tabbar/user-active.png'
+        text: '公司简介',
+        iconPath: './assets/tabbar/building.png',
+        selectedIconPath: './assets/tabbar/building-active.png'
+      },
+      {
+        pagePath: 'pages/index/index',
+        text: '产品图册',
+        iconPath: './assets/tabbar/image.png',
+        selectedIconPath: './assets/tabbar/image-active.png'
       }
     ]
   }

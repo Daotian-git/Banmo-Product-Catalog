@@ -397,4 +397,237 @@ export class ProductsController {
     
     return models.length > 0 ? models : [{ model: '', size: '' }];
   }
+
+  // ==================== 批量操作接口 ====================
+
+  // 导出所有产品为 Excel
+  @Get('export')
+  async exportProducts() {
+    const products = await this.productsService.findAll();
+    
+    // 构建 Excel 数据
+    const excelData = products.map(p => ({
+      '产品编号': p.code || '',
+      '产品名称': p.name,
+      '分类': p.category_name || '',
+      '型号': p.models?.map(m => m.model).join(';') || '',
+      '尺寸': p.models?.map(m => m.size).join(';') || '',
+      '排列方式': p.layout || 1,
+      '排序权重': p.sort_order || 0,
+      '图片URL': p.image_url || ''
+    }));
+
+    // 创建工作簿
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet(excelData);
+    xlsx.utils.book_append_sheet(wb, ws, '产品列表');
+
+    // 导出为 buffer
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        filename: '产品导出_' + new Date().toISOString().slice(0, 10) + '.xlsx',
+        buffer: buffer.toString('base64')
+      }
+    };
+  }
+
+  // 批量删除（按型号删除，当产品所有型号都被删除时删除整个产品）
+  @Post('batch-delete')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('excel'))
+  async batchDelete(
+    @UploadedFile() excelFile: Express.Multer.File
+  ) {
+    if (!excelFile) {
+      return { code: 400, msg: '请上传删除表格' };
+    }
+
+    // 解析 Excel
+    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet) as ProductRow[];
+
+    console.log('批量删除：解析到', rows.length, '行数据');
+
+    // 获取要删除的型号列表
+    const modelsToDelete: string[] = [];
+    for (const row of rows) {
+      const modelCode = row['产品编号'] || row['型号'] || row['code'] || row['model'] || '';
+      if (modelCode.trim()) {
+        modelsToDelete.push(modelCode.trim());
+      }
+    }
+
+    console.log('要删除的型号:', modelsToDelete);
+
+    // 获取所有产品
+    const products = await this.productsService.findAll();
+    let deletedModels = 0;
+    let deletedProducts = 0;
+
+    for (const product of products) {
+      if (!product.models || product.models.length === 0) continue;
+
+      // 查找产品编号匹配的产品
+      if (product.code && modelsToDelete.includes(product.code)) {
+        // 删除整个产品
+        await this.productsService.remove(product.id);
+        deletedProducts++;
+        console.log('删除产品:', product.name, product.code);
+        continue;
+      }
+
+      // 查找型号匹配的项
+      const remainingModels = product.models.filter(m => 
+        !modelsToDelete.includes(m.model)
+      );
+
+      if (remainingModels.length < product.models.length) {
+        // 有型号被删除
+        deletedModels += product.models.length - remainingModels.length;
+        
+        if (remainingModels.length === 0) {
+          // 所有型号都删除了，删除整个产品
+          await this.productsService.remove(product.id);
+          deletedProducts++;
+          console.log('删除产品（型号全部删除）:', product.name);
+        } else {
+          // 更新产品，保留剩余型号
+          await this.productsService.update(product.id, {
+            models: remainingModels
+          });
+          console.log('更新产品型号:', product.name, '剩余', remainingModels.length, '个型号');
+        }
+      }
+    }
+
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        deletedModels,
+        deletedProducts
+      }
+    };
+  }
+
+  // 批量修改（按产品编号修改所有参数）
+  @Post('batch-update')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('excel'))
+  async batchUpdate(
+    @UploadedFile() excelFile: Express.Multer.File
+  ) {
+    if (!excelFile) {
+      return { code: 400, msg: '请上传修改表格' };
+    }
+
+    // 解析 Excel
+    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet) as ProductRow[];
+
+    console.log('批量修改：解析到', rows.length, '行数据');
+
+    // 获取分类列表用于名称匹配
+    const categories = await getSupabaseClient().from('categories').select('*');
+    const categoryMap = new Map();
+    for (const cat of categories.data || []) {
+      categoryMap.set(cat.id, cat);
+      categoryMap.set(cat.name, cat);
+    }
+
+    let updatedCount = 0;
+    let failedRows: { row: number; reason: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const code = row['产品编号'] || row['code'] || '';
+      
+      if (!code) {
+        failedRows.push({ row: i + 2, reason: '缺少产品编号' });
+        continue;
+      }
+
+      // 查找产品
+      const products = await this.productsService.findAll();
+      const product = products.find(p => p.code === code);
+      
+      if (!product) {
+        failedRows.push({ row: i + 2, reason: `产品编号 "${code}" 不存在` });
+        continue;
+      }
+
+      // 解析更新数据
+      const updateData: any = {};
+
+      // 名称
+      const name = row['产品名称'] || row['name'];
+      if (name) updateData.name = name;
+
+      // 分类
+      const categoryStr = row['分类'] || row['分类ID'] || row['category_id'] || row['category'];
+      if (categoryStr) {
+        const catId = this.parseCategoryId(categoryStr, categoryMap);
+        if (catId) updateData.category_id = catId;
+      }
+
+      // 型号和尺寸
+      const models = this.parseModels(row);
+      if (models.length > 0) updateData.models = models;
+
+      // 排列方式
+      const layout = row['排列方式'] || row['layout'];
+      if (layout) updateData.layout = parseInt(layout) || 1;
+
+      // 排序权重
+      const sortOrder = row['排序权重'] || row['sort_order'] || row['sort'];
+      if (sortOrder) updateData.sort_order = parseInt(sortOrder) || 0;
+
+      // 执行更新
+      try {
+        await this.productsService.update(product.id, updateData);
+        updatedCount++;
+        console.log('更新产品:', code, updateData);
+      } catch (err) {
+        failedRows.push({ row: i + 2, reason: String(err) });
+      }
+    }
+
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        updatedCount,
+        failedCount: failedRows.length,
+        failedRows
+      }
+    };
+  }
+
+  // 解析分类ID
+  private parseCategoryId(categoryStr: string, categoryMap: Map<any, any>): number | null {
+    // 尝试直接解析为数字
+    const numId = parseInt(categoryStr);
+    if (!isNaN(numId) && categoryMap.has(numId)) {
+      return numId;
+    }
+
+    // 尝试按名称匹配
+    const cat = categoryMap.get(categoryStr);
+    if (cat) return cat.id;
+
+    // 尝试分割匹配（如"乌金木-沙发"）
+    const parts = categoryStr.split(/[-\/]/);
+    for (const part of parts) {
+      const found = categoryMap.get(part.trim());
+      if (found) return found.id;
+    }
+
+    return null;
+  }
 }

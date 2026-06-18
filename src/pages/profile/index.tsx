@@ -1,7 +1,5 @@
 import { View, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 
 const ProfilePage = () => {
   // H5端显示管理入口
@@ -17,100 +15,95 @@ const ProfilePage = () => {
   }
 
   return (
-    <View className="min-h-full bg-gray-50 pb-12">
-      {/* 用户信息 */}
-      <Card className="mt-4 mx-4 bg-white rounded-lg border border-gray-100">
-        <CardHeader className="pb-2">
-          <View className="flex flex-row items-center gap-3">
-            <View className="w-12 h-12 rounded-full bg-amber-900 flex items-center justify-center">
-              <Text className="text-white text-lg">雅</Text>
-            </View>
-            <View>
-              <CardTitle className="text-base">雅木轩会员</CardTitle>
-              <CardDescription className="text-xs text-gray-500 mt-1">
-                专注新中式，匠心之作
-              </CardDescription>
-            </View>
-          </View>
-        </CardHeader>
-      </Card>
+    <View style={{ minHeight: '100vh', backgroundColor: '#fafafa', padding: '20px', paddingBottom: '80px' }}>
+      {/* 标题 */}
+      <View style={{ marginBottom: '24px' }}>
+        <Text style={{ display: 'block', fontSize: '24px', fontWeight: 'bold', color: '#3a2a1c' }}>
+          半墨家具
+        </Text>
+        <Text style={{ display: 'block', fontSize: '14px', color: '#666', marginTop: '4px' }}>
+          新中式产品图册
+        </Text>
+      </View>
 
-      {/* 功能列表 */}
-      <Card className="mt-3 mx-4 bg-white rounded-lg border border-gray-100">
-        <CardContent className="p-0">
-          <View className="divide-y divide-gray-100">
-            <View
-              className="flex flex-row items-center justify-between px-4 py-3 cursor-pointer"
-              onClick={() => Taro.showToast({ title: '收藏功能即将上线', icon: 'none' })}
-            >
-              <Text className="block text-sm text-gray-700">我的收藏</Text>
-              <Badge className="bg-gray-50 text-gray-500 px-2 py-1 rounded text-xs border border-gray-200">
-                0
-              </Badge>
-            </View>
-            <View
-              className="flex flex-row items-center justify-between px-4 py-3 cursor-pointer"
-              onClick={() => Taro.showToast({ title: '浏览历史即将上线', icon: 'none' })}
-            >
-              <Text className="block text-sm text-gray-700">浏览历史</Text>
-              <Badge className="bg-gray-50 text-gray-500 px-2 py-1 rounded text-xs border border-gray-200">
-                0
-              </Badge>
-            </View>
-            <View
-              className="flex flex-row items-center justify-between px-4 py-3 cursor-pointer"
-              onClick={handleCall}
-            >
-              <Text className="block text-sm text-gray-700">联系客服</Text>
-              <Text className="block text-xs text-gray-400">400-888-8888</Text>
-            </View>
-          </View>
-        </CardContent>
-      </Card>
-
-      {/* 关于品牌 */}
-      <Card className="mt-3 mx-4 bg-white rounded-lg border border-gray-100">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base text-gray-700">雅木轩 · 新中式家具</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Text className="block text-sm text-gray-500 leading-relaxed">
-            雅木轩创立于2010年，专注于新中式家具设计与制作。我们秉承&apos;雅致、简约、匠心&apos;的理念，将传统东方美学与现代生活方式完美融合。
-          </Text>
-          <View className="my-3 border-t border-gray-200" />
-          <View className="flex flex-row gap-2 flex-wrap">
-            <Badge className="bg-amber-800 text-white px-2 py-1 rounded text-xs">榫卯工艺</Badge>
-            <Badge className="bg-amber-800 text-white px-2 py-1 rounded text-xs">实木定制</Badge>
-            <Badge className="bg-amber-800 text-white px-2 py-1 rounded text-xs">匠心之作</Badge>
-          </View>
-        </CardContent>
-      </Card>
+      {/* 公司简介 */}
+      <View style={{ 
+        backgroundColor: '#fff', 
+        borderRadius: '12px', 
+        padding: '20px',
+        marginBottom: '20px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+      }}
+      >
+        <Text style={{ display: 'block', fontSize: '15px', color: '#333', lineHeight: '28px', letterSpacing: '1px' }}>
+          四十年，于木而言，足以让一道年轮沉淀风骨；于匠心而言，足以将一门技艺淬炼成诗。
+        </Text>
+        <View style={{ height: '16px' }} />
+        <Text style={{ display: 'block', fontSize: '15px', color: '#333', lineHeight: '28px', letterSpacing: '1px' }}>
+          半墨家具，始于一九八五年，立足成都，辐射西南。二零一五年，迁至南北通衢的江苏徐州，依托其地利与气候，精研木性，沉潜深耕。在为一线新中式品牌代工的岁月里，我们于木作中凝练东方居住的智慧，深谙品质与尺度。由此，创立【半墨】与【久阅】，将这份凝练的美学完整承载。
+        </Text>
+      </View>
 
       {/* H5端专属：管理后台入口 */}
       {isH5 && (
-        <Card className="mt-3 mx-4 bg-amber-50 rounded-lg border border-amber-200">
-          <CardContent className="p-4">
-            <View
-              className="flex flex-row items-center justify-between cursor-pointer"
-              onClick={() => Taro.navigateTo({ url: '/pages/admin-web/index' })}
-            >
-              <View>
-                <Text className="block text-sm font-medium text-amber-900">产品管理后台</Text>
-                <Text className="block text-xs text-amber-600 mt-1">管理分类和产品信息</Text>
-              </View>
-              <Badge className="bg-amber-800 text-white px-3 py-1 rounded text-xs">进入</Badge>
+        <View style={{ 
+          backgroundColor: '#fff8f0', 
+          borderRadius: '12px', 
+          padding: '16px',
+          marginBottom: '20px',
+          border: '1px solid #e8d5b8'
+        }}
+        >
+          <View
+            style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+            onClick={() => Taro.navigateTo({ url: '/pages/admin-web/index' })}
+          >
+            <View>
+              <Text style={{ display: 'block', fontSize: '16px', fontWeight: 'bold', color: '#92400e' }}>
+                产品管理后台
+              </Text>
+              <Text style={{ display: 'block', fontSize: '12px', color: '#b45309', marginTop: '4px' }}>
+                管理产品信息、批量操作
+              </Text>
             </View>
-          </CardContent>
-        </Card>
+            <View style={{ 
+              backgroundColor: '#92400e', 
+              borderRadius: '6px', 
+              paddingLeft: '12px',
+              paddingRight: '12px',
+              paddingTop: '6px',
+              paddingBottom: '6px'
+            }}
+            >
+              <Text style={{ color: '#fff', fontSize: '12px' }}>进入</Text>
+            </View>
+          </View>
+        </View>
       )}
 
+      {/* 联系客服 */}
+      <View style={{ 
+        backgroundColor: '#fff', 
+        borderRadius: '12px', 
+        padding: '16px'
+      }}
+      >
+        <View
+          style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+          onClick={handleCall}
+        >
+          <Text style={{ fontSize: '14px', color: '#333' }}>联系客服</Text>
+          <Text style={{ fontSize: '12px', color: '#999' }}>400-888-8888</Text>
+        </View>
+      </View>
+
       {/* 底部信息 */}
-      <View className="mt-6 px-4">
-        <Text className="block text-center text-xs text-gray-400">
-          雅木轩 © 2010-2024
+      <View style={{ marginTop: '40px' }}>
+        <Text style={{ display: 'block', textAlign: 'center', fontSize: '12px', color: '#999' }}>
+          半墨家具 © 1985-2024
         </Text>
-        <Text className="block text-center text-xs text-gray-400 mt-1">
-          浙江东阳 · 新中式家具工艺传承
+        <Text style={{ display: 'block', textAlign: 'center', fontSize: '12px', color: '#999', marginTop: '4px' }}>
+          江苏徐州 · 新中式家具工艺传承
         </Text>
       </View>
     </View>

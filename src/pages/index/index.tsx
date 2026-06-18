@@ -10,12 +10,12 @@ interface ProductModel {
 interface Product {
   id: number
   name: string
-  code?: string // 产品编号
-  models: ProductModel[] // 型号和尺寸数组
+  code?: string
+  models: ProductModel[]
   image_url: string
-  layout: number // 排列方式：1单列，2双列
+  layout: number
   category_id: number
-  category_name?: string // 完整分类路径如"乌金木-沙发"
+  category_name?: string
 }
 
 const IndexPage = () => {
@@ -48,18 +48,18 @@ const IndexPage = () => {
     
     return (
       <View key={product.id} style={cardStyle}>
-        {/* 图片展示 - 不裁切，自适应 */}
+        {/* 图片展示 - 自适应尺寸 */}
         <View style={{ position: 'relative', width: '100%' }}>
           {product.image_url ? (
             <Image
-              style={{ width: '100%', height: isDoubleColumn ? '180px' : '300px' }}
+              style={{ width: '100%' }}
               src={product.image_url}
-              mode="aspectFit"
+              mode="widthFix"
             />
           ) : (
             <View style={{ 
               width: '100%', 
-              height: isDoubleColumn ? '180px' : '300px', 
+              minHeight: '100px',
               backgroundColor: '#f5f5f5',
               display: 'flex',
               alignItems: 'center',
@@ -72,62 +72,45 @@ const IndexPage = () => {
         </View>
         
         {/* 产品信息 */}
-        <View style={{ padding: isDoubleColumn ? '8px' : '16px' }}>
-          {/* 名称 */}
-          <Text style={{ 
-            display: 'block',
-            fontSize: isDoubleColumn ? '14px' : '18px',
-            fontWeight: 'bold',
-            color: '#333',
-            marginBottom: '8px'
-          }}
-          >
-            {product.name}
-          </Text>
-          
-          {/* 产品编号 */}
-          {product.code && (
-            <Text
-              style={{
-                display: 'block',
-                fontSize: isDoubleColumn ? '12px' : '14px',
-                color: '#888',
-                marginBottom: '4px'
-              }}
+        <View style={{ padding: isDoubleColumn ? '8px' : '12px' }}>
+          {/* 产品名称 + 分类标签（同一行） */}
+          <View style={{ marginBottom: '4px' }}>
+            <Text style={{ 
+              fontSize: isDoubleColumn ? '12px' : '14px',
+              fontWeight: 'bold',
+              color: '#333'
+            }}
             >
-              编号：{product.code}
+              {product.name}
             </Text>
-          )}
+            {product.category_name && (
+              <Text style={{ 
+                fontSize: isDoubleColumn ? '12px' : '14px',
+                color: '#92400e',
+                marginLeft: '8px'
+              }}
+              >
+                {product.category_name}
+              </Text>
+            )}
+          </View>
           
-          {/* 型号和对应尺寸 */}
+          {/* 型号和尺寸（空格分隔） */}
           {product.models && product.models.length > 0 && (
-            <View style={{ marginBottom: '8px' }}>
+            <View>
               {product.models.map((m, idx) => (
                 <Text
                   key={idx}
                   style={{
                     display: 'block',
                     fontSize: isDoubleColumn ? '12px' : '14px',
-                    color: '#666',
-                    marginBottom: '4px'
+                    color: '#666'
                   }}
                 >
-                  {m.model} · {m.size}
+                  {m.model} {m.size}
                 </Text>
               ))}
             </View>
-          )}
-          
-          {/* 分类（小字显示完整路径） */}
-          {product.category_name && (
-            <Text style={{ 
-              display: 'block',
-              fontSize: '10px',
-              color: '#999'
-            }}
-            >
-              {product.category_name}
-            </Text>
           )}
         </View>
       </View>
@@ -165,18 +148,8 @@ const IndexPage = () => {
 
   return (
     <View style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', paddingBottom: '60px' }}>
-      {/* 标题 */}
-      <View style={{ padding: '16px', marginBottom: '16px' }}>
-        <Text style={{ display: 'block', fontSize: '20px', fontWeight: 'bold', color: '#333' }}>
-          产品图册
-        </Text>
-        <Text style={{ display: 'block', fontSize: '14px', color: '#666', marginTop: '4px' }}>
-          新中式雅韵，匠心之作
-        </Text>
-      </View>
-
       {/* 产品列表 */}
-      <View style={{ padding: '0 16px' }}>
+      <View style={{ padding: '16px' }}>
         {products.length > 0 ? (
           <View>
             {/* 单列产品 */}
@@ -199,12 +172,12 @@ const IndexPage = () => {
               >
                 <View style={{ flex: 1 }}>
                   {group[0] ? renderProductCard(group[0], true) : (
-                    <View style={{ backgroundColor: 'transparent', height: '280px' }} />
+                    <View style={{ backgroundColor: 'transparent' }} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
                   {group[1] ? renderProductCard(group[1], true) : (
-                    <View style={{ backgroundColor: 'transparent', height: '280px' }} />
+                    <View style={{ backgroundColor: 'transparent' }} />
                   )}
                 </View>
               </View>
