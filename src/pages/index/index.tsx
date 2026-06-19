@@ -79,7 +79,7 @@ const IndexPage = () => {
           {/* 产品名称 + 分类标签（同一行） */}
           <View style={{ marginBottom: '4px', display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ 
-              fontSize: isDoubleColumn ? '12px' : '14px',
+              fontSize: '16px',
               fontWeight: 'bold',
               color: '#333'
             }}
@@ -88,9 +88,9 @@ const IndexPage = () => {
             </Text>
             {product.category_name && (
               <Text style={{ 
-                fontSize: isDoubleColumn ? '12px' : '14px',
+                fontSize: '10px',
                 color: '#92400e',
-                marginLeft: '20px',
+                marginLeft: '15px',
                 backgroundColor: '#fff8f0',
                 border: '1px solid #e8d5b8',
                 borderRadius: '4px',
