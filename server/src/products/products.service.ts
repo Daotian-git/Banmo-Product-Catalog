@@ -9,6 +9,7 @@ export interface CreateProductData {
   code?: string; // 产品编号
   models?: Array<{ model: string; size: string }>;
   layout?: number;
+  sort_order?: number; // 排序权重
   imageFile?: Express.Multer.File;
   imageBuffer?: Buffer;
   imageFilename?: string;
@@ -181,6 +182,7 @@ export class ProductsService {
         code: data.code || null,
         models: data.models || [],
         layout: data.layout || 1,
+        sort_order: data.sort_order ?? 0,
         image_key: imageKey,
         image_url: imageUrl,
       })
