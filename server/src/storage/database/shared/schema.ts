@@ -14,7 +14,7 @@ export const categories = pgTable(
 		id: serial().primaryKey(),
 		name: varchar("name", { length: 50 }).notNull(),
 		parent_id: integer("parent_id").references(() => categories.id),  // 父分类ID，一级分类为null
-		sort_order: integer("sort_order").notNull().default(0),
+		sort_order: numeric("sort_order", { precision: 10, scale: 3 }).notNull().default('0'),  // 排序权重：数值越大越靠后，支持小数点后3位
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
@@ -28,13 +28,14 @@ export const products = pgTable(
 	"products",
 	{
 		id: serial().primaryKey(),
+		code: varchar("code", { length: 50 }).unique(),               // 产品编号（唯一）
 		name: varchar("name", { length: 100 }).notNull(),           // 产品名称
 		category_id: integer("category_id").notNull().references(() => categories.id),  // 二级分类ID
 		models: jsonb("models").notNull().default(sql`'[]'::jsonb`), // 型号列表，如 [{"model": "MJ-001", "size": "120×60×45"}]
 		image_key: varchar("image_key", { length: 255 }),            // 对象存储key
 		image_url: varchar("image_url", { length: 500 }),            // 图片URL
 		layout: integer("layout").notNull().default(1),              // 排列方式：1=单列，2=双列
-		sort_order: integer("sort_order").notNull().default(0),
+		sort_order: numeric("sort_order", { precision: 10, scale: 3 }).notNull().default('0'),  // 排序权重：数值越大越靠后，支持小数点后3位
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }),
 	},
