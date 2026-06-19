@@ -81,9 +81,9 @@ const AdminWebPage = () => {
       const res = await fetch('/api/products/export')
       const data = await res.json()
       
-      if (data.code === 200 && data.data?.buffer) {
+      if (data.code === 200 && data.data?.content) {
         // 下载导出的 Excel
-        const binary = atob(data.data.buffer)
+        const binary = atob(data.data.content)
         const bytes = new Uint8Array(binary.length)
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i)
