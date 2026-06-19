@@ -52,9 +52,12 @@ const IndexPage = () => {
         <View style={{ position: 'relative', width: '100%' }}>
           {product.image_url ? (
             <Image
-              style={{ width: '100%' }}
+              style={{ width: '100%', minHeight: '100px', backgroundColor: '#f5f5f5' }}
               src={product.image_url}
               mode="widthFix"
+              onError={() => {
+                console.log('图片加载失败:', product.image_url)
+              }}
             />
           ) : (
             <View style={{ 
