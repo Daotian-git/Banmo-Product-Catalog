@@ -90,7 +90,7 @@ const IndexPage = () => {
               <Text style={{ 
                 fontSize: isDoubleColumn ? '12px' : '14px',
                 color: '#92400e',
-                marginLeft: '100px',
+                marginLeft: '20px',
                 backgroundColor: '#fff8f0',
                 border: '1px solid #e8d5b8',
                 borderRadius: '4px',
