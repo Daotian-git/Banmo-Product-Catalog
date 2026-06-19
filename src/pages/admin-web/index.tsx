@@ -485,13 +485,19 @@ const AdminWebPage = () => {
           使用说明
         </Text>
         <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
-          1. 导入模板：产品编号、产品名称、分类（乌金木/黑檀木）、型号（多个用分号分隔）、尺寸（多个用分号分隔）、排列方式（1单列/2双列）、排序权重
+          1. 导入模板字段：编号、名称、型号（多个用分号分隔）、尺寸（多个用分号分隔）、排列方式（1单列/2双列）、分类ID（1=乌金木系列，2=黑檀木系列）、排序权重（数值越大越靠后，支持小数点后3位）、图片文件名（支持中文）
         </Text>
         <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
-          2. 删除模板：填写产品编号可删除整个产品，填写型号可删除特定型号
+          2. 型号和尺寸数量必须对应，如2个型号对应2个尺寸
         </Text>
         <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
-          3. 修改模板：以产品编号为标识，修改其他字段
+          3. 删除模板：填写产品编号可删除整个产品，填写型号可删除特定型号
+        </Text>
+        <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
+          4. 修改模板：以产品编号为标识，修改其他字段，图片文件名可留空
+        </Text>
+        <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
+          5. ZIP图片包中的文件名需与Excel中的图片文件名完全一致
         </Text>
       </View>
 
