@@ -6,24 +6,19 @@ const ProfilePage = () => {
   const isH5 = Taro.getEnv() === Taro.ENV_TYPE.WEB
 
   const handleCall = () => {
-    // 使用 makePhoneCall 直接拨打电话
-    Taro.makePhoneCall({
-      phoneNumber: '19980402169'
-    }).catch(() => {
-      // 如果拨打电话失败（如用户取消），则显示弹窗
-      Taro.showModal({
-        title: '联系客服',
-        content: '19980402169',
-        confirmText: '拨打电话',
-        cancelText: '取消',
-        success: (res) => {
-          if (res.confirm) {
-            Taro.makePhoneCall({
-              phoneNumber: '19980402169'
-            })
-          }
+    // 直接弹窗显示电话号码
+    Taro.showModal({
+      title: '联系客服',
+      content: '199 8040 2169',
+      confirmText: '拨打电话',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          Taro.makePhoneCall({
+            phoneNumber: '19980402169'
+          })
         }
-      })
+      }
     })
   }
 
@@ -97,7 +92,7 @@ const ProfilePage = () => {
           onClick={handleCall}
         >
           <Text style={{ fontSize: '14px', color: '#333' }}>联系客服</Text>
-          <Text style={{ fontSize: '12px', color: '#92400e' }}>19980402169</Text>
+          <Text style={{ fontSize: '16px', fontWeight: 'bold', color: '#92400e' }}>199 8040 2169</Text>
         </View>
       </View>
     </View>
