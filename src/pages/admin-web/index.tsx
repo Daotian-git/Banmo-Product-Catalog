@@ -29,50 +29,44 @@ const AdminWebPage = () => {
     }
   }, [])
 
-  // 下载导入模板
-  const downloadImportTemplate = () => {
-    const template = [
-      { '产品编号': 'BM001', '产品名称': '乌金木沙发', '分类': '1', '型号': 'MJ-001;MJ-002', '尺寸': '180×90×85cm;200×100×90cm', '排列方式': 1, '排序权重': 0, '图片文件名': 'sofa-001.jpg' },
-      { '产品编号': 'BM002', '产品名称': '黑檀木茶几', '分类': '2', '型号': 'MJ-003', '尺寸': '120×60×45cm', '排列方式': 2, '排序权重': 1, '图片文件名': 'table-002.jpg' }
-    ]
-    downloadExcel(template, '产品导入模板.xlsx')
+  // 通用下载 Excel 函数（从后端API获取真正的xlsx格式）
+  const downloadTemplateFromApi = async (type: 'import' | 'delete' | 'update') => {
+    try {
+      const res = await fetch(`/api/products/template/${type}`)
+      const data = await res.json()
+      
+      if (data.code === 200 && data.data?.content) {
+        // 下载真正的 xlsx 格式模板
+        const binary = atob(data.data.content)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i)
+        }
+        const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = data.data.filename
+        a.click()
+        URL.revokeObjectURL(url)
+        Taro.showToast({ title: '模板已下载', icon: 'success' })
+      } else {
+        Taro.showToast({ title: '下载失败', icon: 'error' })
+      }
+    } catch (e) {
+      console.error('下载模板失败:', e)
+      Taro.showToast({ title: '下载失败', icon: 'error' })
+    }
   }
+
+  // 下载导入模板
+  const downloadImportTemplate = () => downloadTemplateFromApi('import')
 
   // 下载删除模板
-  const downloadDeleteTemplate = () => {
-    const template = [
-      { '产品编号': 'BM001', '型号': '' },  // 型号为空表示删除整个产品
-      { '产品编号': 'BM002', '型号': 'MJ-001' }  // 只删除指定型号
-    ]
-    downloadExcel(template, '产品删除模板.xlsx')
-  }
+  const downloadDeleteTemplate = () => downloadTemplateFromApi('delete')
 
   // 下载修改模板
-  const downloadUpdateTemplate = () => {
-    const template = [
-      { '产品编号': 'BM001', '产品名称': '新名称', '分类': '2', '型号': 'MJ-001;MJ-002', '尺寸': '180×90×85cm;200×100×90cm', '排列方式': 2, '排序权重': 0.5, '图片文件名': 'new-image.jpg' }
-    ]
-    downloadExcel(template, '产品修改模板.xlsx')
-  }
-
-  // 通用下载 Excel 函数
-  const downloadExcel = (data: any[], filename: string) => {
-    // 构建 CSV 内容（简单实现）
-    const headers = Object.keys(data[0] || {})
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(h => row[h] || '').join(','))
-    ].join('\n')
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename.replace('.xlsx', '.csv')
-    a.click()
-    URL.revokeObjectURL(url)
-    Taro.showToast({ title: '模板已下载', icon: 'success' })
-  }
+  const downloadUpdateTemplate = () => downloadTemplateFromApi('update')
 
   // 一键导出所有产品
   const handleExport = async () => {
