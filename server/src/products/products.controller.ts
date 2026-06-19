@@ -4,6 +4,7 @@ import { memoryStorage } from 'multer';
 import { ProductsService } from './products.service';
 import * as xlsx from 'xlsx';
 import * as AdmZip from 'adm-zip';
+import * as ExcelJS from 'exceljs';
 import { getSupabaseClient } from '../storage/database/supabase-client';
 
 // 类型定义
@@ -277,11 +278,21 @@ export class ProductsController {
       return { code: 400, msg: '请上传Excel文件', data: null };
     }
 
-    // 解析Excel（强制使用UTF-8编码）
-    const workbook = xlsx.read(excelBuffer, { type: 'buffer', codepage: 65001 });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rows = xlsx.utils.sheet_to_json(sheet, { raw: false }) as Record<string, string>[];
+    // 使用ExcelJS解析Excel（更好地处理中文编码）
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(excelBuffer);
+    const worksheet = workbook.worksheets[0];
+    
+    const rows: Record<string, string>[] = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // 跳过标题行
+      const rowData: Record<string, string> = {};
+      row.eachCell((cell, colNumber) => {
+        const header = worksheet.getRow(1).getCell(colNumber).value?.toString() || '';
+        rowData[header] = cell.value?.toString() || '';
+      });
+      rows.push(rowData);
+    });
 
     console.log('Excel解析结果:', rows.length, '行数据');
     if (rows.length > 0) {
