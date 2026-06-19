@@ -6,11 +6,24 @@ const ProfilePage = () => {
   const isH5 = Taro.getEnv() === Taro.ENV_TYPE.WEB
 
   const handleCall = () => {
-    Taro.showModal({
-      title: '联系客服',
-      content: '客服热线：400-888-8888\n工作时间：周一至周日 9:00-18:00',
-      showCancel: false,
-      confirmText: '知道了'
+    // 使用 makePhoneCall 直接拨打电话
+    Taro.makePhoneCall({
+      phoneNumber: '19980402169'
+    }).catch(() => {
+      // 如果拨打电话失败（如用户取消），则显示弹窗
+      Taro.showModal({
+        title: '联系客服',
+        content: '19980402169',
+        confirmText: '拨打电话',
+        cancelText: '取消',
+        success: (res) => {
+          if (res.confirm) {
+            Taro.makePhoneCall({
+              phoneNumber: '19980402169'
+            })
+          }
+        }
+      })
     })
   }
 
@@ -73,9 +86,10 @@ const ProfilePage = () => {
 
       {/* 联系客服 */}
       <View style={{ 
-        backgroundColor: '#fff', 
+        backgroundColor: '#fff8f0', 
         borderRadius: '12px', 
-        padding: '16px'
+        padding: '16px',
+        border: '1px solid #e8d5b8'
       }}
       >
         <View
@@ -83,7 +97,7 @@ const ProfilePage = () => {
           onClick={handleCall}
         >
           <Text style={{ fontSize: '14px', color: '#333' }}>联系客服</Text>
-          <Text style={{ fontSize: '12px', color: '#999' }}>400-888-8888</Text>
+          <Text style={{ fontSize: '12px', color: '#92400e' }}>19980402169</Text>
         </View>
       </View>
     </View>
