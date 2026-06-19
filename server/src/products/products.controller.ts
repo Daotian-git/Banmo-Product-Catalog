@@ -325,7 +325,7 @@ export class ProductsController {
 
         // 解析分类ID（支持数字ID或分类名称）
         let categoryId = 1;
-        const categoryValue = row['分类ID'] || row['分类名称'] || row['category_id'] || row['category'] || '';
+        const categoryValue = row['分类'] || row['分类ID'] || row['分类名称'] || row['category_id'] || row['category'] || '';
         
         if (categoryValue) {
           // 如果是数字，直接使用
@@ -366,14 +366,15 @@ export class ProductsController {
           categoryId = 1; // 回退到默认分类
         }
 
-        console.log('创建产品:', row['名称'] || row['name'], '分类ID:', categoryId);
+        console.log('创建产品:', row['产品名称'] || row['名称'] || row['name'], '分类ID:', categoryId);
 
         const product = await this.productsService.create({
-          name: row['名称'] || row['name'] || '',
-          code: row['编号'] || row['产品编号'] || row['code'] || undefined,
+          name: row['产品名称'] || row['名称'] || row['name'] || '',
+          code: row['产品编号'] || row['编号'] || row['code'] || undefined,
           category_id: categoryId,
           models: modelsData,
           layout: Number(row['排列方式'] || row['layout']) || 1,
+          sort_order: Number(row['排序权重'] || row['sort_order'] || row['sort']) || 0,
           imageBuffer: imageBuffer || undefined,
           imageFilename: imageFilename
         });
@@ -455,11 +456,12 @@ export class ProductsController {
         const imageBuffer = images.get(imageFilename) || null;
 
         const product = await this.productsService.create({
-          name: row['名称'] || row['name'] || '',
-          code: row['编号'] || row['产品编号'] || row['code'] || undefined,
-          category_id: Number(row['分类ID'] || row['category_id']) || 1,
+          name: row['产品名称'] || row['名称'] || row['name'] || '',
+          code: row['产品编号'] || row['编号'] || row['code'] || undefined,
+          category_id: Number(row['分类'] || row['分类ID'] || row['category_id']) || 1,
           models: modelsData,
           layout: Number(row['排列方式'] || row['layout']) || 1,
+          sort_order: Number(row['排序权重'] || row['sort_order'] || row['sort']) || 0,
           imageBuffer: imageBuffer || undefined,
           imageFilename: imageFilename
         });
