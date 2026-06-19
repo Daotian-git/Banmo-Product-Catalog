@@ -280,7 +280,8 @@ export class ProductsController {
 
     // 使用ExcelJS解析Excel（更好地处理中文编码）
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(Buffer.from(excelBuffer));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(excelBuffer as any);
     const worksheet = workbook.worksheets[0];
     
     const rows: Record<string, string>[] = [];
