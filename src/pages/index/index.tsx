@@ -77,7 +77,7 @@ const IndexPage = () => {
         {/* 产品信息 */}
         <View style={{ padding: isDoubleColumn ? '8px' : '12px' }}>
           {/* 产品名称 + 分类标签（同一行） */}
-          <View style={{ marginBottom: '4px', display: 'flex', flexDirection: 'row' }}>
+          <View style={{ marginBottom: '4px', display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ 
               fontSize: isDoubleColumn ? '12px' : '14px',
               fontWeight: 'bold',
@@ -90,7 +90,14 @@ const IndexPage = () => {
               <Text style={{ 
                 fontSize: isDoubleColumn ? '12px' : '14px',
                 color: '#92400e',
-                marginLeft: '8px'
+                marginLeft: '100px',
+                backgroundColor: '#fff8f0',
+                border: '1px solid #e8d5b8',
+                borderRadius: '4px',
+                paddingLeft: '6px',
+                paddingRight: '6px',
+                paddingTop: '2px',
+                paddingBottom: '2px'
               }}
               >
                 {product.category_name}
