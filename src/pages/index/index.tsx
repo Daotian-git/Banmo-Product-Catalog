@@ -90,7 +90,7 @@ const IndexPage = () => {
               <Text style={{ 
                 fontSize: '10px',
                 color: '#92400e',
-                marginLeft: '15px',
+                marginLeft: '10px',
                 backgroundColor: '#fff8f0',
                 border: '1px solid #e8d5b8',
                 borderRadius: '4px',
