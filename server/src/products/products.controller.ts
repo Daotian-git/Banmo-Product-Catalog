@@ -277,15 +277,16 @@ export class ProductsController {
       return { code: 400, msg: '请上传Excel文件', data: null };
     }
 
-    // 解析Excel
-    const workbook = xlsx.read(excelBuffer, { type: 'buffer' });
+    // 解析Excel（强制使用UTF-8编码）
+    const workbook = xlsx.read(excelBuffer, { type: 'buffer', codepage: 65001 });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, string>[];
+    const rows = xlsx.utils.sheet_to_json(sheet, { raw: false }) as Record<string, string>[];
 
     console.log('Excel解析结果:', rows.length, '行数据');
     if (rows.length > 0) {
       console.log('第一行数据示例:', JSON.stringify(rows[0], null, 2));
+      console.log('列名:', Object.keys(rows[0]));
     }
 
     // 获取所有分类（用于根据名称查找ID）
@@ -424,10 +425,10 @@ export class ProductsController {
     }
 
     // 解析Excel
-    const workbook = xlsx.read(excelBuffer, { type: 'buffer' });
+    const workbook = xlsx.read(excelBuffer, { type: 'buffer', codepage: 65001 });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, string>[];
+    const rows = xlsx.utils.sheet_to_json(sheet, { raw: false }) as Record<string, string>[];
 
     // 解压ZIP获取图片
     const images: Map<string, Buffer> = new Map();
@@ -540,9 +541,9 @@ export class ProductsController {
     }
 
     // 解析 Excel
-    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer' });
+    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer', codepage: 65001 });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet) as ProductRow[];
+    const rows = xlsx.utils.sheet_to_json(sheet, { raw: false }) as ProductRow[];
 
     console.log('批量删除：解析到', rows.length, '行数据');
 
@@ -620,9 +621,9 @@ export class ProductsController {
     }
 
     // 解析 Excel
-    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer' });
+    const workbook = xlsx.read(excelFile.buffer, { type: 'buffer', codepage: 65001 });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet) as ProductRow[];
+    const rows = xlsx.utils.sheet_to_json(sheet, { raw: false }) as ProductRow[];
 
     console.log('批量修改：解析到', rows.length, '行数据');
 
