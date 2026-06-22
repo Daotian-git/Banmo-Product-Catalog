@@ -7,6 +7,7 @@ import * as AdmZip from 'adm-zip';
 import * as ExcelJS from 'exceljs';
 import * as iconv from 'iconv-lite';
 import { getSupabaseClient } from '../storage/database/supabase-client';
+import { writeOperationLog, LogEntry } from '../storage/operation-log';
 
 // 类型定义
 interface ProductRow {
@@ -110,21 +111,31 @@ export class ProductsController {
       {
         '产品编号': 'BM-001',
         '产品名称': '修改后的名称',
-        '分类': '黑檀木',
+        '分类': '黑檀木系列',
         '型号': 'MJ-001;MJ-002',
         '尺寸': '180×90×85cm;200×100×90cm',
         '排列方式': 1,
         '排序权重': 10,
         '图片文件名': 'new-image.jpg'
+      },
+      {
+        '产品编号': 'BM-002',
+        '产品名称': '',
+        '分类': '',
+        '型号': '',
+        '尺寸': '',
+        '排列方式': '',
+        '排序权重': '',
+        '图片文件名': ''
       }
     ];
-    
+
     const wb = xlsx.utils.book_new();
     const ws = xlsx.utils.json_to_sheet(templateData);
     xlsx.utils.book_append_sheet(wb, ws, '修改模板');
-    
+
     const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    
+
     return {
       code: 200,
       msg: 'success',
@@ -140,17 +151,19 @@ export class ProductsController {
   async getDeleteTemplate() {
     const templateData = [
       {
-        '产品编号': 'BM-001',
-        '型号': 'MJ-001'
+        '产品编号': 'BM-001'
+      },
+      {
+        '产品编号': 'BM-002'
       }
     ];
-    
+
     const wb = xlsx.utils.book_new();
     const ws = xlsx.utils.json_to_sheet(templateData);
     xlsx.utils.book_append_sheet(wb, ws, '删除模板');
-    
+
     const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    
+
     return {
       code: 200,
       msg: 'success',
@@ -309,119 +322,174 @@ export class ProductsController {
     const categories = categoriesData || [];
     console.log('可用分类数量:', categories.length);
 
+    // 从文件名中提取产品编码（用于匹配）
+    const extractCode = (filename: string): string => {
+      // 匹配像 MYSF901, MYDT905, X-C611 这样的产品编码
+      const match = filename.match(/([A-Z]+[\d]+(?:[.-]\d+)*)/i);
+      return match ? match[1] : '';
+    };
+
     // 解压ZIP获取图片
     const images: Map<string, Buffer> = new Map();
+    const imageCodeMap: Map<string, string> = new Map(); // code → filename
     if (zipBuffer) {
       const zip = new AdmZip(zipBuffer);
       const zipEntries = zip.getEntries();
       console.log('ZIP包含文件数:', zipEntries.length);
       for (const entry of zipEntries) {
         if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
-          // 尝试多种编码解码文件名
           let filename = entry.entryName.split('/').pop() || entry.entryName;
-          
-          // 如果文件名包含乱码字符，尝试用GBK解码
-          if (filename.includes('') || /[^\x00-\x7F]/.test(filename)) {
-            const rawBuffer = Buffer.from(entry.entryName, 'binary');
-            filename = iconv.decode(rawBuffer, 'gbk');
-            filename = filename.split('/').pop() || filename;
+
+          // 尝试用GBK从原始header解码（处理Windows中文ZIP）
+          try {
+            const rawName = (entry.header as any)?.fileName;
+            if (rawName && Buffer.isBuffer(rawName)) {
+              const gbkName = iconv.decode(rawName, 'gbk');
+              if (gbkName && !gbkName.includes('�')) {
+                filename = gbkName.split('/').pop() || gbkName;
+              }
+            }
+          } catch {
+            // GBK解码失败，保持原名
           }
-          
-          images.set(filename, entry.getData());
-          console.log('发现图片:', filename, '(原始:', entry.entryName, ')');
+
+          const imageBuffer = entry.getData();
+          images.set(filename, imageBuffer);
+          // 同时按产品编码索引，用于乱码时的回退匹配
+          const code = extractCode(filename);
+          if (code) {
+            imageCodeMap.set(code, filename);
+          }
+          console.log('发现图片:', filename, '(编码匹配:', code || '无', ')');
         }
       }
     }
 
     // 批量创建产品
-    const created: any[] = [];
-    const failed: any[] = [];
+    const entries: LogEntry[] = [];
 
     for (const row of rows) {
+      const rowCode = row['产品编号'] || row['编号'] || row['code'] || '';
+      const rowName = row['产品名称'] || row['名称'] || row['name'] || '';
       try {
         // 解析型号和尺寸（支持多个，用分号分隔）
         const modelsData = this.parseModels(row);
-        
-        // 获取图片
-        const imageFilename = row['图片文件名'] || row['image'] || '';
-        const imageBuffer = images.get(imageFilename) || null;
 
-        // 解析分类ID（支持数字ID或分类名称）
-        let categoryId = 1;
-        const categoryValue = row['分类'] || row['分类ID'] || row['分类名称'] || row['category_id'] || row['category'] || '';
-        
-        if (categoryValue) {
-          // 如果是数字，直接使用
-          const numericId = Number(categoryValue);
-          if (!isNaN(numericId) && numericId > 0) {
-            categoryId = numericId;
-          } else {
-            // 如果是分类名称，查找对应的ID
-            // 支持格式：'乌金木-沙发' 或 '沙发'（二级分类名）
-            const categoryName = String(categoryValue).trim();
-            
-            // 尝试匹配完整路径（一级-二级）
-            if (categoryName.includes('-') || categoryName.includes('/')) {
-              const parts = categoryName.split(/[-\/]/).map(s => s.trim());
-              const parentName = parts[0];
-              const childName = parts[1];
-              const parent = categories.find(c => c.name === parentName && !c.parent_id);
-              if (parent) {
-                const child = categories.find(c => c.name === childName && c.parent_id === parent.id);
-                if (child) {
-                  categoryId = child.id;
-                }
-              }
-            } else {
-              // 直接匹配分类名称（可能是二级分类）
-              const matchedCategory = categories.find(c => c.name === categoryName);
-              if (matchedCategory) {
-                categoryId = matchedCategory.id;
-              }
+        // 获取图片 — 三路匹配：精确名 → 编码匹配 → 后缀匹配
+        const excelImageName = row['图片文件名'] || row['image'] || '';
+        let imageBuffer: Buffer | null = images.get(excelImageName) || null;
+
+        if (!imageBuffer && excelImageName) {
+          const excelCode = extractCode(excelImageName);
+          if (excelCode && imageCodeMap.has(excelCode)) {
+            const matchedName = imageCodeMap.get(excelCode)!;
+            imageBuffer = images.get(matchedName) || null;
+            console.log('编码匹配图片:', excelImageName, '→', matchedName);
+          }
+        }
+
+        if (!imageBuffer && excelImageName) {
+          const suffix = excelImageName.replace(/^.*[\\/_\-]/, '').toLowerCase();
+          for (const [name, buf] of images.entries()) {
+            if (name.toLowerCase().endsWith(suffix)) {
+              imageBuffer = buf;
+              console.log('后缀匹配图片:', excelImageName, '→', name);
+              break;
             }
           }
         }
 
-        // 验证分类ID是否存在
-        const categoryExists = categories.find(c => c.id === categoryId);
-        if (!categoryExists) {
-          console.log('分类ID不存在:', categoryId, '原始值:', categoryValue);
-          categoryId = 1; // 回退到默认分类
+        // 解析分类ID（支持数字ID或分类名称）
+        let categoryId: number | null = null;
+        const categoryValue = row['分类'] || row['分类ID'] || row['分类名称'] || row['category_id'] || row['category'] || '';
+
+        // 先获取一级分类列表（按 sort_order 排序）
+        const primaryCategories = categories
+          .filter(c => !c.parent_id)
+          .sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
+
+        if (categoryValue) {
+          const numericId = Number(categoryValue);
+          if (!isNaN(numericId) && numericId > 0) {
+            // 数字情况：先当 ID 查，查不到则当序号映射到一级分类
+            const byId = categories.find(c => c.id === numericId);
+            if (byId) {
+              categoryId = numericId;
+            } else {
+              // 序号映射：1→第一个一级分类, 2→第二个一级分类
+              const idx = numericId - 1;
+              if (primaryCategories[idx]) {
+                categoryId = primaryCategories[idx].id;
+              } else {
+                categoryId = primaryCategories[0]?.id || null;
+              }
+            }
+          } else {
+            // 文本情况：按名称匹配
+            const categoryName = String(categoryValue).trim();
+            if (categoryName.includes('-') || categoryName.includes('/')) {
+              const parts = categoryName.split(/[-\/]/).map(s => s.trim());
+              const parent = categories.find(c => c.name === parts[0] && !c.parent_id);
+              if (parent) {
+                const child = categories.find(c => c.name === parts[1] && c.parent_id === parent.id);
+                if (child) categoryId = child.id;
+              }
+            } else {
+              const matched = categories.find(c => c.name === categoryName);
+              if (matched) categoryId = matched.id;
+            }
+          }
         }
 
-        console.log('创建产品:', row['产品名称'] || row['名称'] || row['name'], '分类ID:', categoryId);
+        // 兜底
+        if (!categoryId && primaryCategories.length > 0) {
+          categoryId = primaryCategories[0].id;
+        }
+        if (!categoryId) {
+          categoryId = 1; // last resort
+        }
 
-        const product = await this.productsService.create({
-          name: row['产品名称'] || row['名称'] || row['name'] || '',
-          code: row['产品编号'] || row['编号'] || row['code'] || undefined,
+        console.log('创建产品:', rowName, '分类ID:', categoryId);
+
+        await this.productsService.create({
+          name: rowName,
+          code: rowCode || undefined,
           category_id: categoryId,
           models: modelsData,
           layout: Number(row['排列方式'] || row['layout']) || 1,
           sort_order: Number(row['排序权重'] || row['sort_order'] || row['sort']) || 0,
           imageBuffer: imageBuffer || undefined,
-          imageFilename: imageFilename
+          imageFilename: excelImageName
         });
-        created.push(product);
+        entries.push({ code: rowCode, name: rowName, success: true });
       } catch (error) {
         console.error('创建产品失败:', error.message, '数据:', row);
-        failed.push({ row, error: error.message });
+        entries.push({ code: rowCode, name: rowName, success: false, error: error.message });
       }
     }
 
-    console.log('导入结果: 成功', created.length, '失败', failed.length);
-    if (failed.length > 0) {
-      console.log('失败详情:', JSON.stringify(failed, null, 2));
-    }
+    const successCount = entries.filter(e => e.success).length;
+    const failedCount = entries.filter(e => !e.success).length;
+    console.log('导入结果: 成功', successCount, '失败', failedCount);
 
-    return { 
-      code: 200, 
-      msg: 'success', 
-      data: { 
-        count: created.length,
-        total: rows.length, 
-        created: created.length, 
-        failed: failed.length,
-        details: { created, failed }
+    const logResult = writeOperationLog({
+      type: '导入',
+      total: rows.length,
+      success: successCount,
+      failed: failedCount,
+      entries,
+      filename: ''
+    });
+
+    return {
+      code: 200,
+      msg: 'success',
+      data: {
+        total: rows.length,
+        success: successCount,
+        failed: failedCount,
+        logFile: logResult,
+        entries
       }
     };
   }
@@ -452,24 +520,39 @@ export class ProductsController {
     const sheet = workbook.Sheets[sheetName];
     const rows = xlsx.utils.sheet_to_json(sheet, { raw: false }) as Record<string, string>[];
 
+    // 从文件名中提取产品编码（用于匹配）
+    const extractCode2 = (filename: string): string => {
+      const match = filename.match(/([A-Z]+[\d]+(?:[.-]\d+)*)/i);
+      return match ? match[1] : '';
+    };
+
     // 解压ZIP获取图片
     const images: Map<string, Buffer> = new Map();
+    const imageCodeMap: Map<string, string> = new Map();
     if (zipBuffer) {
       const zip = new AdmZip(zipBuffer);
       const zipEntries = zip.getEntries();
       for (const entry of zipEntries) {
         if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
-          // 尝试多种编码解码文件名
           let filename = entry.entryName.split('/').pop() || entry.entryName;
-          
-          // 如果文件名包含乱码字符，尝试用GBK解码
-          if (filename.includes('') || /[^\x00-\x7F]/.test(filename)) {
-            const rawBuffer = Buffer.from(entry.entryName, 'binary');
-            filename = iconv.decode(rawBuffer, 'gbk');
-            filename = filename.split('/').pop() || filename;
+
+          // 尝试用GBK从原始header解码（处理Windows中文ZIP）
+          try {
+            const rawName = (entry.header as any)?.fileName;
+            if (rawName && Buffer.isBuffer(rawName)) {
+              const gbkName = iconv.decode(rawName, 'gbk');
+              if (gbkName && !gbkName.includes('�')) {
+                filename = gbkName.split('/').pop() || gbkName;
+              }
+            }
+          } catch {
+            // GBK解码失败，保持原名
           }
-          
-          images.set(filename, entry.getData());
+
+          const imageBuffer = entry.getData();
+          images.set(filename, imageBuffer);
+          const code = extractCode2(filename);
+          if (code) imageCodeMap.set(code, filename);
           console.log('发现图片:', filename);
         }
       }
@@ -483,10 +566,28 @@ export class ProductsController {
       try {
         // 解析型号和尺寸（支持多个，用分号分隔）
         const modelsData = this.parseModels(row);
-        
-        // 获取图片
-        const imageFilename = row['图片文件名'] || row['image'] || '';
-        const imageBuffer = images.get(imageFilename) || null;
+
+        // 获取图片 — 三路匹配
+        const excelImageName = row['图片文件名'] || row['image'] || '';
+        let imageBuffer: Buffer | null = images.get(excelImageName) || null;
+
+        if (!imageBuffer && excelImageName) {
+          const excelCode = extractCode2(excelImageName);
+          if (excelCode && imageCodeMap.has(excelCode)) {
+            const matchedName = imageCodeMap.get(excelCode)!;
+            imageBuffer = images.get(matchedName) || null;
+          }
+        }
+
+        if (!imageBuffer && excelImageName) {
+          const suffix = excelImageName.replace(/^.*[\\/_\-]/, '').toLowerCase();
+          for (const [name, buf] of images.entries()) {
+            if (name.toLowerCase().endsWith(suffix)) {
+              imageBuffer = buf;
+              break;
+            }
+          }
+        }
 
         const product = await this.productsService.create({
           name: row['产品名称'] || row['名称'] || row['name'] || '',
@@ -496,7 +597,7 @@ export class ProductsController {
           layout: Number(row['排列方式'] || row['layout']) || 1,
           sort_order: Number(row['排序权重'] || row['sort_order'] || row['sort']) || 0,
           imageBuffer: imageBuffer || undefined,
-          imageFilename: imageFilename
+          imageFilename: excelImageName
         });
         created.push(product);
       } catch (error) {
@@ -561,7 +662,7 @@ export class ProductsController {
 
   // ==================== 批量操作接口 ====================
 
-  // 批量删除（按型号删除，当产品所有型号都被删除时删除整个产品）
+  // 批量删除（按产品编号删除整个产品）
   @Post('batch-delete')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('excel'))
@@ -579,75 +680,68 @@ export class ProductsController {
 
     console.log('批量删除：解析到', rows.length, '行数据');
 
-    // 获取要删除的型号列表
-    const modelsToDelete: string[] = [];
+    // 获取要删除的产品编号列表
+    const codesToDelete: string[] = [];
     for (const row of rows) {
-      const modelCode = row['产品编号'] || row['型号'] || row['code'] || row['model'] || '';
-      if (modelCode.trim()) {
-        modelsToDelete.push(modelCode.trim());
+      const code = row['产品编号'] || row['code'] || '';
+      if (code.trim()) {
+        codesToDelete.push(code.trim());
       }
     }
 
-    console.log('要删除的型号:', modelsToDelete);
+    console.log('要删除的产品编号:', codesToDelete);
 
-    // 获取所有产品
+    // 获取所有产品，按编号匹配删除
     const products = await this.productsService.findAll();
-    let deletedModels = 0;
-    let deletedProducts = 0;
+    const entries: LogEntry[] = [];
 
-    for (const product of products) {
-      if (!product.models || product.models.length === 0) continue;
-
-      // 查找产品编号匹配的产品
-      if (product.code && modelsToDelete.includes(product.code)) {
-        // 删除整个产品
-        await this.productsService.remove(product.id);
-        deletedProducts++;
-        console.log('删除产品:', product.name, product.code);
-        continue;
-      }
-
-      // 查找型号匹配的项
-      const remainingModels = product.models.filter(m => 
-        !modelsToDelete.includes(m.model)
-      );
-
-      if (remainingModels.length < product.models.length) {
-        // 有型号被删除
-        deletedModels += product.models.length - remainingModels.length;
-        
-        if (remainingModels.length === 0) {
-          // 所有型号都删除了，删除整个产品
+    for (const code of codesToDelete) {
+      const product = products.find(p => p.code === code);
+      try {
+        if (product) {
           await this.productsService.remove(product.id);
-          deletedProducts++;
-          console.log('删除产品（型号全部删除）:', product.name);
+          entries.push({ code, name: product.name, success: true });
+          console.log('删除产品:', product.name, code);
         } else {
-          // 更新产品，保留剩余型号
-          await this.productsService.update(product.id, {
-            models: remainingModels
-          });
-          console.log('更新产品型号:', product.name, '剩余', remainingModels.length, '个型号');
+          entries.push({ code, name: '(未找到)', success: false, error: '产品编号不存在' });
         }
+      } catch (error) {
+        entries.push({ code, name: product?.name || '(未知)', success: false, error: error.message });
       }
     }
+
+    const successCount = entries.filter(e => e.success).length;
+    const failedCount = entries.filter(e => !e.success).length;
+
+    const logResult = writeOperationLog({
+      type: '删除',
+      total: codesToDelete.length,
+      success: successCount,
+      failed: failedCount,
+      entries,
+      filename: ''
+    });
 
     return {
       code: 200,
       msg: 'success',
-      data: {
-        deletedModels,
-        deletedProducts
-      }
+      data: { total: codesToDelete.length, success: successCount, failed: failedCount, logFile: logResult, entries }
     };
   }
 
-  // 批量修改（按产品编号修改所有参数）
+  // 批量修改（按产品编号修改所有参数，可选 ZIP 图片包）
   @Post('batch-update')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('excel'))
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'excel', maxCount: 1 },
+    { name: 'zip', maxCount: 1 }
+  ]))
   async batchUpdate(
-    @UploadedFile() excelFile: Express.Multer.File
+    @UploadedFiles() files: { excel?: Express.Multer.File[]; zip?: Express.Multer.File[] }
   ) {
+    const excelFile = files?.excel?.[0];
+    const zipFile = files?.zip?.[0];
+
     if (!excelFile) {
       return { code: 400, msg: '请上传修改表格' };
     }
@@ -667,80 +761,144 @@ export class ProductsController {
       categoryMap.set(cat.name, cat);
     }
 
-    let updatedCount = 0;
-    let failedRows: { row: number; reason: string }[] = [];
+    // 从文件名提取编码（用于ZIP图片匹配）
+    const extractCode3 = (filename: string): string => {
+      const match = filename.match(/([A-Z]+[\d]+(?:[.-]\d+)*)/i);
+      return match ? match[1] : '';
+    };
+
+    // 解压 ZIP 获取图片
+    const images: Map<string, Buffer> = new Map();
+    const imageCodeMap: Map<string, string> = new Map();
+    if (zipFile) {
+      const zip = new AdmZip(zipFile.buffer);
+      const zipEntries = zip.getEntries();
+      console.log('修改-ZIP包含文件数:', zipEntries.length);
+      for (const entry of zipEntries) {
+        if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
+          let filename = entry.entryName.split('/').pop() || entry.entryName;
+          try {
+            const rawName = (entry.header as any)?.fileName;
+            if (rawName && Buffer.isBuffer(rawName)) {
+              const gbkName = iconv.decode(rawName, 'gbk');
+              if (gbkName && !gbkName.includes('�')) {
+                filename = gbkName.split('/').pop() || gbkName;
+              }
+            }
+          } catch { /* keep original */ }
+          const imgBuf = entry.getData();
+          images.set(filename, imgBuf);
+          const code = extractCode3(filename);
+          if (code) imageCodeMap.set(code, filename);
+          console.log('修改-发现图片:', filename);
+        }
+      }
+    }
+
+    const entries: LogEntry[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const code = row['产品编号'] || row['code'] || '';
-      
+      const rowName = row['产品名称'] || row['name'] || '';
+
       if (!code) {
-        failedRows.push({ row: i + 2, reason: '缺少产品编号' });
+        entries.push({ code: '', name: rowName, success: false, error: '缺少产品编号' });
         continue;
       }
 
       // 查找产品
       const products = await this.productsService.findAll();
       const product = products.find(p => p.code === code);
-      
+
       if (!product) {
-        failedRows.push({ row: i + 2, reason: `产品编号 "${code}" 不存在` });
+        entries.push({ code, name: rowName, success: false, error: `产品编号 "${code}" 不存在` });
         continue;
       }
 
       // 解析更新数据
       const updateData: any = {};
-
-      // 名称
-      const name = row['产品名称'] || row['name'];
-      if (name) updateData.name = name;
-
-      // 分类
+      if (rowName) updateData.name = rowName;
       const categoryStr = row['分类'] || row['分类ID'] || row['category_id'] || row['category'];
       if (categoryStr) {
         const catId = this.parseCategoryId(categoryStr, categoryMap);
         if (catId) updateData.category_id = catId;
       }
-
-      // 型号和尺寸
       const models = this.parseModels(row);
       if (models.length > 0) updateData.models = models;
-
-      // 排列方式
       const layout = row['排列方式'] || row['layout'];
       if (layout) updateData.layout = parseInt(layout) || 1;
-
-      // 排序权重
       const sortOrder = row['排序权重'] || row['sort_order'] || row['sort'];
       if (sortOrder) updateData.sort_order = parseInt(sortOrder) || 0;
+
+      // 匹配图片
+      const excelImageName = row['图片文件名'] || row['image'] || '';
+      let imageBuffer: Buffer | null = null;
+      if (excelImageName) {
+        imageBuffer = images.get(excelImageName) || null;
+        if (!imageBuffer) {
+          const excelCode = extractCode3(excelImageName);
+          if (excelCode && imageCodeMap.has(excelCode)) {
+            imageBuffer = images.get(imageCodeMap.get(excelCode)!) || null;
+          }
+        }
+        if (!imageBuffer) {
+          const suffix = excelImageName.replace(/^.*[\\/_\-]/, '').toLowerCase();
+          for (const [name, buf] of images.entries()) {
+            if (name.toLowerCase().endsWith(suffix)) { imageBuffer = buf; break; }
+          }
+        }
+        if (imageBuffer) {
+          updateData.imageBuffer = imageBuffer;
+          updateData.imageFilename = excelImageName;
+        }
+      }
 
       // 执行更新
       try {
         await this.productsService.update(product.id, updateData);
-        updatedCount++;
-        console.log('更新产品:', code, updateData);
+        entries.push({ code, name: product.name, success: true });
+        console.log('更新产品:', code, Object.keys(updateData));
       } catch (err) {
-        failedRows.push({ row: i + 2, reason: String(err) });
+        entries.push({ code, name: product.name, success: false, error: String(err) });
       }
     }
+
+    const successCount = entries.filter(e => e.success).length;
+    const failedCount = entries.filter(e => !e.success).length;
+
+    const logResult = writeOperationLog({
+      type: '修改',
+      total: rows.length,
+      success: successCount,
+      failed: failedCount,
+      entries,
+      filename: ''
+    });
 
     return {
       code: 200,
       msg: 'success',
-      data: {
-        updatedCount,
-        failedCount: failedRows.length,
-        failedRows
-      }
+      data: { total: rows.length, success: successCount, failed: failedCount, logFile: logResult, entries }
     };
   }
 
   // 解析分类ID
   private parseCategoryId(categoryStr: string, categoryMap: Map<any, any>): number | null {
-    // 尝试直接解析为数字
+    // 尝试直接解析为数字 → 查 ID
     const numId = parseInt(categoryStr);
     if (!isNaN(numId) && categoryMap.has(numId)) {
       return numId;
+    }
+
+    // 数字但 ID 不存在 → 序号映射到一级分类（1→第一个一级，2→第二个一级）
+    if (!isNaN(numId) && numId > 0) {
+      const seen = new Set<number>();
+      const allCats = Array.from(categoryMap.values())
+        .filter((c: any) => !c.parent_id && !seen.has(c.id) && seen.add(c.id))
+        .sort((a: any, b: any) => Number(a.sort_order) - Number(b.sort_order));
+      const mapped = allCats[numId - 1];
+      if (mapped) return mapped.id;
     }
 
     // 尝试按名称匹配

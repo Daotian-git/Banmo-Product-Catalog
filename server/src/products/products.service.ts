@@ -1,6 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { LocalStorage } from '../storage/local-storage';
 import { getSupabaseClient } from '../storage/database/supabase-client';
+
+// Coze 平台环境检测：线上用 S3Storage，本地用 LocalStorage
+let S3Storage: any = null;
+const isCozePlatform = !!process.env.COZE_WORKSPACE_PATH;
+if (isCozePlatform) {
+  try {
+    S3Storage = require('coze-coding-dev-sdk').S3Storage;
+  } catch {
+    // 本地没装 coze-coding-dev-sdk 也不影响
+  }
+}
 
 // 产品数据类型（用于创建）
 export interface CreateProductData {
@@ -23,14 +34,22 @@ export interface UpdateProductData {
   models?: Array<{ model: string; size: string }>;
   layout?: number;
   imageFile?: Express.Multer.File;
+  imageBuffer?: Buffer;
+  imageFilename?: string;
 }
 
 @Injectable()
 export class ProductsService {
-  private storage: S3Storage;
+  private storage: any; // S3Storage | LocalStorage
 
   constructor() {
-    this.storage = new S3Storage();
+    if (isCozePlatform && S3Storage) {
+      this.storage = new S3Storage();
+      console.log('📦 使用 Coze S3 存储');
+    } else {
+      this.storage = new LocalStorage();
+      console.log('💾 使用本地文件存储 (server/uploads/)');
+    }
   }
 
   // 获取 Supabase Client
@@ -204,13 +223,21 @@ export class ProductsService {
     let imageKey: string | undefined = existing.image_key;
     let imageUrl: string | undefined = existing.image_url;
 
-    // 更新图片（如果有新图片）
-    if (data.imageFile && data.imageFile.buffer) {
+    // 更新图片（如果有新图片 — 支持 Multer File 或 Buffer）
+    if (data.imageFile?.buffer) {
       const filename = `products/${Date.now()}_${data.imageFile.originalname}`;
       imageKey = await this.storage.uploadFile({
         fileContent: data.imageFile.buffer,
         fileName: filename,
         contentType: data.imageFile.mimetype
+      });
+      imageUrl = await this.storage.generatePresignedUrl({ key: imageKey });
+    } else if (data.imageBuffer) {
+      const filename = `products/${Date.now()}_${data.imageFilename || 'image.jpg'}`;
+      imageKey = await this.storage.uploadFile({
+        fileContent: data.imageBuffer,
+        fileName: filename,
+        contentType: 'image/jpeg'
       });
       imageUrl = await this.storage.generatePresignedUrl({ key: imageKey });
     }

@@ -116,7 +116,6 @@ export class CategoriesService {
         name: data.name,
         parent_id: data.parent_id,
         sort_order: data.sort_order,
-        updated_at: new Date().toISOString(),
       })
       .eq('id', id)
       .select()

@@ -8,6 +8,7 @@ const AdminWebPage = () => {
   const zipInputRef = useRef<HTMLInputElement>(null)
   const deleteInputRef = useRef<HTMLInputElement>(null)
   const updateInputRef = useRef<HTMLInputElement>(null)
+  const updateZipInputRef = useRef<HTMLInputElement>(null)
 
   const [importing, setImporting] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -18,6 +19,7 @@ const AdminWebPage = () => {
   const [zipFile, setZipFile] = useState<File | null>(null)
   const [deleteFile, setDeleteFile] = useState<File | null>(null)
   const [updateFile, setUpdateFile] = useState<File | null>(null)
+  const [updateZipFile, setUpdateZipFile] = useState<File | null>(null)
 
   // 强制宽屏布局
   useEffect(() => {
@@ -121,11 +123,12 @@ const AdminWebPage = () => {
       const data = await res.json()
       
       if (data.code === 200) {
-        Taro.showToast({ 
-          title: `导入成功！共${data.data.created}个产品`, 
-          icon: 'success',
-          duration: 3000
-        })
+        const d = data.data;
+        Taro.showModal({
+          title: '导入完成',
+          content: `总计: ${d.total} 条\n成功: ${d.success} 条\n失败: ${d.failed} 条\n\n日志: ${d.logFile}`,
+          showCancel: false
+        });
         setExcelFile(null)
         setZipFile(null)
       } else {
@@ -158,11 +161,13 @@ const AdminWebPage = () => {
       const data = await res.json()
       
       if (data.code === 200) {
-        Taro.showToast({ 
-          title: `删除${data.data.deletedProducts}个产品`, 
-          icon: 'success',
-          duration: 3000
-        })
+        const d = data.data;
+        const detail = d.entries?.map((e: any) => `${e.success ? '✓' : '✗'} ${e.code} ${e.name}${e.error ? ' - ' + e.error : ''}`).join('\n') || '';
+        Taro.showModal({
+          title: '删除完成',
+          content: `总计: ${d.total} 条\n成功: ${d.success} 条\n失败: ${d.failed} 条\n\n${detail}\n\n日志: ${d.logFile}`,
+          showCancel: false
+        });
         setDeleteFile(null)
       } else {
         Taro.showToast({ title: data.msg || '删除失败', icon: 'error' })
@@ -186,6 +191,7 @@ const AdminWebPage = () => {
       setUpdating(true)
       const formData = new FormData()
       formData.append('excel', updateFile)
+      if (updateZipFile) formData.append('zip', updateZipFile)
 
       const res = await fetch('/api/products/batch-update', {
         method: 'POST',
@@ -194,12 +200,14 @@ const AdminWebPage = () => {
       const data = await res.json()
       
       if (data.code === 200) {
-        Taro.showToast({ 
-          title: `修改${data.data.updatedCount}个产品`, 
-          icon: 'success',
-          duration: 3000
-        })
+        const d = data.data;
+        Taro.showModal({
+          title: '修改完成',
+          content: `总计: ${d.total} 条\n成功: ${d.success} 条\n失败: ${d.failed} 条\n\n日志: ${d.logFile}`,
+          showCancel: false
+        });
         setUpdateFile(null)
+        setUpdateZipFile(null)
       } else {
         Taro.showToast({ title: data.msg || '修改失败', icon: 'error' })
       }
@@ -225,11 +233,13 @@ const AdminWebPage = () => {
     const zipInput = zipInputRef.current
     const deleteInput = deleteInputRef.current
     const updateInput = updateInputRef.current
+    const updateZipInput = updateZipInputRef.current
 
     if (excelInput) excelInput.onchange = (e) => handleFileChange(setExcelFile, e)
     if (zipInput) zipInput.onchange = (e) => handleFileChange(setZipFile, e)
     if (deleteInput) deleteInput.onchange = (e) => handleFileChange(setDeleteFile, e)
     if (updateInput) updateInput.onchange = (e) => handleFileChange(setUpdateFile, e)
+    if (updateZipInput) updateZipInput.onchange = (e) => handleFileChange(setUpdateZipFile, e)
   }, [])
 
   return (
@@ -256,6 +266,7 @@ const AdminWebPage = () => {
       <input ref={zipInputRef} type="file" accept=".zip" style={{ display: 'none' }} />
       <input ref={deleteInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} />
       <input ref={updateInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} />
+      <input ref={updateZipInputRef} type="file" accept=".zip" style={{ display: 'none' }} />
 
       {/* 功能卡片 */}
       <View style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
@@ -367,7 +378,7 @@ const AdminWebPage = () => {
             批量删除
           </Text>
           <Text style={{ display: 'block', fontSize: '14px', color: '#666', marginBottom: '16px' }}>
-            按产品编号删除型号，删除所有型号时删除整个产品
+            上传包含产品编号的Excel，按编号删除整个产品
           </Text>
           
           <View style={{ marginBottom: '12px' }}>
@@ -439,7 +450,7 @@ const AdminWebPage = () => {
               下载模板
             </button>
             <button
-              style={{ 
+              style={{
                 backgroundColor: updateFile ? '#e8d5b8' : '#f5f5f5',
                 color: '#333',
                 borderRadius: '8px',
@@ -448,6 +459,18 @@ const AdminWebPage = () => {
               onClick={() => updateInputRef.current?.click()}
             >
               {updateFile ? updateFile.name : '选择修改表格'}
+            </button>
+            <button
+              style={{
+                backgroundColor: updateZipFile ? '#e8d5b8' : '#f5f5f5',
+                color: '#333',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                marginLeft: '8px'
+              }}
+              onClick={() => updateZipInputRef.current?.click()}
+            >
+              {updateZipFile ? updateZipFile.name : '选择ZIP图片'}
             </button>
           </View>
           
@@ -485,7 +508,7 @@ const AdminWebPage = () => {
           2. 型号和尺寸数量必须对应，如2个型号对应2个尺寸
         </Text>
         <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
-          3. 删除模板：填写产品编号可删除整个产品，填写型号可删除特定型号
+          3. 删除模板：填写产品编号即可删除整个产品
         </Text>
         <Text style={{ display: 'block', fontSize: '14px', color: '#666', lineHeight: '24px' }}>
           4. 修改模板：以产品编号为标识，修改其他字段，图片文件名可留空
