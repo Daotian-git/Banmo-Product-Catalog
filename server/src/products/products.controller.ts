@@ -5,6 +5,7 @@ import { ProductsService } from './products.service';
 import * as xlsx from 'xlsx';
 import * as AdmZip from 'adm-zip';
 import * as ExcelJS from 'exceljs';
+import * as iconv from 'iconv-lite';
 import { getSupabaseClient } from '../storage/database/supabase-client';
 
 // 类型定义
@@ -316,9 +317,18 @@ export class ProductsController {
       console.log('ZIP包含文件数:', zipEntries.length);
       for (const entry of zipEntries) {
         if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
-          const filename = entry.entryName.split('/').pop() || entry.entryName;
+          // 尝试多种编码解码文件名
+          let filename = entry.entryName.split('/').pop() || entry.entryName;
+          
+          // 如果文件名包含乱码字符，尝试用GBK解码
+          if (filename.includes('') || /[^\x00-\x7F]/.test(filename)) {
+            const rawBuffer = Buffer.from(entry.entryName, 'binary');
+            filename = iconv.decode(rawBuffer, 'gbk');
+            filename = filename.split('/').pop() || filename;
+          }
+          
           images.set(filename, entry.getData());
-          console.log('发现图片:', filename);
+          console.log('发现图片:', filename, '(原始:', entry.entryName, ')');
         }
       }
     }
@@ -449,8 +459,18 @@ export class ProductsController {
       const zipEntries = zip.getEntries();
       for (const entry of zipEntries) {
         if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i)) {
-          const filename = entry.entryName.split('/').pop() || entry.entryName;
+          // 尝试多种编码解码文件名
+          let filename = entry.entryName.split('/').pop() || entry.entryName;
+          
+          // 如果文件名包含乱码字符，尝试用GBK解码
+          if (filename.includes('') || /[^\x00-\x7F]/.test(filename)) {
+            const rawBuffer = Buffer.from(entry.entryName, 'binary');
+            filename = iconv.decode(rawBuffer, 'gbk');
+            filename = filename.split('/').pop() || filename;
+          }
+          
           images.set(filename, entry.getData());
+          console.log('发现图片:', filename);
         }
       }
     }
